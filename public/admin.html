@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Organic Waste Digital Twin Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root {
+      --primary: #10b981;
+      --bg: #f3f4f6;
+      --surface: #ffffff;
+    }
+    body {
+      background-color: var(--bg);
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    .hide { display: none !important; }
+    .sidebar-link {
+      display: block; padding: 0.75rem 1rem; border-radius: 0.375rem; color: #374151; font-weight: 500; cursor: pointer; transition: all 0.2s;
+    }
+    .sidebar-link:hover { background-color: #e5e7eb; }
+    .sidebar-link.active { background-color: var(--primary); color: white; }
+    .card { background-color: var(--surface); border-radius: 0.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); padding: 1.5rem; }
+    .stat-value { font-size: 2rem; font-weight: 700; color: #111827; }
+    .stat-label { font-size: 0.875rem; font-weight: 500; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em; }
+    
+    /* Bin Visualizer */
+    .bin-container {
+      width: 150px; height: 250px; border: 4px solid #4b5563; border-top: none; border-radius: 0 0 10px 10px;
+      position: relative; margin: 0 auto; background: #f9fafb; overflow: hidden;
+    }
+    .bin-lid {
+      width: 170px; height: 20px; background: #4b5563; border-radius: 5px; position: absolute; top: -20px; left: -10px;
+    }
+    .bin-fill {
+      position: absolute; bottom: 0; left: 0; width: 100%; transition: height 0.5s ease-in-out;
+    }
+    .bin-fill.low { background-color: #10b981; }
+    .bin-fill.moderate { background-color: #f59e0b; }
+    .bin-fill.high { background-color: #f97316; }
+    .bin-fill.full { background-color: #ef4444; }
+
+    /* Flow diagram */
+    .flow-box { border: 2px solid #10b981; padding: 10px; text-align: center; border-radius: 8px; font-weight: bold; background: white;}
+    .flow-arrow { text-align: center; color: #6b7280; font-size: 1.5rem; padding: 5px 0; }
+  </style>
+</head>
+<body class="h-screen flex overflow-hidden text-gray-800">
+
+  <!-- Login View -->
+  <div id="login-view" class="flex-1 flex flex-col items-center justify-center bg-gray-50 z-50 fixed inset-0">
+    <div class="card w-96 text-center shadow-xl">
+      <div class="mb-6">
+        <h1 class="text-2xl font-bold text-green-600">Smart Waste Platform</h1>
+        <p class="text-gray-500 text-sm mt-2">Connected to Live Digital Twin</p>
+      </div>
+      <div class="text-left mb-4">
+        <label class="block text-sm font-medium text-gray-700 mb-2">Select User Account</label>
+        <select id="login-user-select" class="w-full border-gray-300 rounded-md shadow-sm p-2 border focus:border-green-500 focus:ring-green-500 outline-none">
+          <option value="USER-001">User 1 (BIN-001)</option>
+          <option value="USER-002">User 2 (BIN-002)</option>
+          <option value="USER-003">User 3 (BIN-003)</option>
+          <option value="USER-004">User 4 (BIN-004)</option>
+          <option value="USER-005">User 5 (BIN-005)</option>
+          <option value="USER-006">User 6 (BIN-006)</option>
+        </select>
+      </div>
+      <button id="login-btn" class="w-full bg-green-600 text-white font-bold py-2 px-4 rounded hover:bg-green-700 transition">
+        Login as User
+      </button>
+      <button id="login-admin-btn" class="w-full mt-3 bg-gray-800 text-white font-bold py-2 px-4 rounded hover:bg-gray-900 transition">
+        Login as Admin
+      </button>
+      
+      <div id="conn-status" class="mt-6 text-xs font-bold text-yellow-600 flex items-center justify-center gap-2">
+        <div class="w-2 h-2 rounded-full bg-yellow-500 animate-pulse"></div>
+        WAITING FOR SIMULATION DATA...
+      </div>
+    </div>
+  </div>
+
+  <!-- App Shell -->
+  <div id="app-view" class="flex-1 flex hide w-full h-full">
+    <!-- Sidebar -->
+    <div class="w-64 bg-white border-r border-gray-200 flex flex-col z-20 shadow-md md:relative absolute h-full transition-transform transform -translate-x-full md:translate-x-0" id="sidebar">
+      <div class="p-4 border-b border-gray-200 flex justify-between items-center">
+        <div>
+          <h2 class="text-xl font-bold text-green-600">Smart Waste</h2>
+          <div class="text-xs text-green-500 font-bold mt-1 flex items-center gap-1">
+            <div class="w-2 h-2 rounded-full bg-green-500"></div> Connected
+          </div>
+        </div>
+        <button class="md:hidden text-gray-500" onclick="document.getElementById('sidebar').classList.add('-translate-x-full')">✕</button>
+      </div>
+      <div class="p-4 flex flex-col gap-1 flex-1 overflow-y-auto">
+        <div class="text-xs font-bold text-gray-400 uppercase mb-2 mt-2" id="nav-user-label">USER PORTAL</div>
+        <a class="sidebar-link active" data-target="dashboard">Dashboard</a>
+        <a class="sidebar-link" data-target="mybin">My Bin</a>
+        <a class="sidebar-link" data-target="activity">Waste Activity</a>
+        <a class="sidebar-link" data-target="credits">Credits</a>
+        <a class="sidebar-link" data-target="fines">Fines & Penalties</a>
+        
+        <div class="text-xs font-bold text-gray-400 uppercase mb-2 mt-4">COMMUNITY</div>
+        <a class="sidebar-link" data-target="leaderboard">Leaderboard</a>
+        <a class="sidebar-link" data-target="docking">Docking Stations</a>
+        <a class="sidebar-link" data-target="twin">Live Digital Twin</a>
+        
+        <div class="text-xs font-bold text-gray-400 uppercase mb-2 mt-4">INFO</div>
+        <a class="sidebar-link" data-target="overview">System Overview</a>
+        <a class="sidebar-link" data-target="about">About & Rules</a>
+        <a class="sidebar-link" data-target="profile">Profile</a>
+
+        <div id="nav-admin-section" class="hide">
+          <div class="text-xs font-bold text-gray-400 uppercase mb-2 mt-4">ADMINISTRATION</div>
+          <a class="sidebar-link" data-target="admin">Admin Dashboard</a>
+        </div>
+      </div>
+      <div class="p-4 border-t border-gray-200 bg-gray-50">
+        <div class="flex items-center gap-3 mb-4">
+          <div class="w-10 h-10 rounded-full bg-green-200 flex items-center justify-center text-green-800 font-bold shadow-sm" id="user-avatar">U</div>
+          <div>
+            <div class="font-bold text-sm text-gray-800" id="user-name">User</div>
+            <div class="text-xs text-gray-500 font-mono" id="user-bin">BIN</div>
+          </div>
+        </div>
+        <button id="logout-btn" class="w-full text-sm font-semibold bg-white border border-gray-300 text-gray-700 py-2 rounded hover:bg-gray-100 transition shadow-sm">Logout</button>
+      </div>
+    </div>
+
+    <!-- Main Content Area -->
+    <div class="flex-1 flex flex-col bg-gray-50 overflow-hidden relative">
+      <!-- Topbar -->
+      <header class="bg-white border-b border-gray-200 h-16 flex items-center justify-between px-4 md:px-6 shrink-0 shadow-sm z-10">
+        <div class="flex items-center gap-3">
+          <button class="md:hidden text-gray-500 hover:text-green-600" onclick="document.getElementById('sidebar').classList.remove('-translate-x-full')">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" /></svg>
+          </button>
+          <h2 class="text-xl font-semibold text-gray-800" id="page-title">Dashboard</h2>
+        </div>
+        <div class="flex items-center gap-4">
+          <div class="relative">
+            <button class="p-2 text-gray-500 hover:text-green-600 relative" onclick="alert('No new notifications')">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+              </svg>
+              <span id="notif-badge" class="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full hide"></span>
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <!-- Scrollable View Container -->
+      <main class="flex-1 overflow-y-auto p-4 md:p-6" id="view-container">
+        
+        <!-- ================= DASHBOARD VIEW ================= -->
+        <div id="view-dashboard" class="page-view space-y-6">
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+            <div class="card flex flex-col justify-between border-t-4 border-green-500">
+              <div class="stat-label">Credits Balance</div>
+              <div class="stat-value text-green-600 mt-2 flex items-baseline gap-2">
+                <span id="dash-credits">0</span>
+                <span class="text-sm font-normal text-gray-500">CR</span>
+              </div>
+            </div>
+            <div class="card flex flex-col justify-between border-t-4 border-red-500">
+              <div class="flex justify-between items-start">
+                <div class="stat-label">Pending Fines</div>
+                <button id="pay-penalty-btn" class="hidden bg-red-500 hover:bg-red-600 text-white text-xs font-bold py-1 px-2 rounded transition cursor-pointer">
+                  Pay (500 CR)
+                </button>
+              </div>
+              <div class="stat-value text-red-500 mt-2 flex items-baseline gap-2">
+                <span id="dash-fines">0</span>
+                <span class="text-sm font-normal text-gray-500">Flags</span>
+              </div>
+            </div>
+            <div class="card flex flex-col justify-between border-t-4 border-blue-500">
+              <div class="stat-label">Waste Deposited</div>
+              <div class="stat-value text-blue-600 mt-2 flex items-baseline gap-2">
+                <span id="dash-waste">0.00</span>
+                <span class="text-sm font-normal text-gray-500">kg</span>
+              </div>
+            </div>
+            <div class="card flex flex-col justify-between border-t-4 border-purple-500">
+              <div class="stat-label">Drops Overview</div>
+              <div class="flex justify-between items-center mt-2">
+                <div class="flex flex-col items-center">
+                  <span class="text-2xl font-bold text-green-500" id="dash-clean">0</span>
+                  <span class="text-xs text-gray-500 uppercase font-bold">Clean</span>
+                </div>
+                <div class="text-gray-300 text-2xl font-light">|</div>
+                <div class="flex flex-col items-center">
+                  <span class="text-2xl font-bold text-red-500" id="dash-contam">0</span>
+                  <span class="text-xs text-gray-500 uppercase font-bold">Contam.</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
+            <div class="card lg:col-span-2">
+              <h3 class="text-lg font-bold mb-4">Waste Quality Analysis</h3>
+              <div class="relative h-64 w-full flex items-center justify-center">
+                <canvas id="qualityChart"></canvas>
+              </div>
+            </div>
+            <div class="card">
+              <h3 class="text-lg font-bold mb-4">My Bin Status</h3>
+              <div class="flex justify-center mb-6">
+                <div class="bin-container shadow-inner">
+                  <div class="bin-lid shadow-md"></div>
+                  <div class="bin-fill low" id="dash-bin-fill" style="height: 0%;"></div>
+                  <div class="absolute inset-0 flex items-center justify-center font-bold text-white text-2xl text-shadow" style="text-shadow: 1px 1px 3px rgba(0,0,0,0.8);" id="dash-bin-pct">0%</div>
+                </div>
+              </div>
+              <div class="text-center bg-gray-50 rounded-lg p-3 border border-gray-200">
+                <div class="font-bold text-lg text-gray-800 font-mono" id="dash-bin-id">BIN-001</div>
+                <div class="text-green-600 font-bold text-sm mt-1 flex items-center justify-center gap-1">
+                  <div class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div> Online
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="card">
+            <div class="flex justify-between items-center mb-4">
+              <h3 class="text-lg font-bold">Recent Activity</h3>
+              <button class="text-sm text-green-600 font-bold hover:underline" onclick="document.querySelector('[data-target=\'activity\']').click()">View All</button>
+            </div>
+            <div class="overflow-x-auto rounded-lg border border-gray-200">
+              <table class="w-full text-left text-sm whitespace-nowrap">
+                <thead>
+                  <tr class="bg-gray-50 text-gray-600 border-b border-gray-200">
+                    <th class="p-3 font-bold uppercase text-xs">Date / Time</th>
+                    <th class="p-3 font-bold uppercase text-xs">Type</th>
+                    <th class="p-3 font-bold uppercase text-xs">Weight</th>
+                    <th class="p-3 font-bold uppercase text-xs">CR / Fine</th>
+                    <th class="p-3 font-bold uppercase text-xs">Station</th>
+                  </tr>
+                </thead>
+                <tbody id="dash-recent-activity" class="divide-y divide-gray-200">
+                  <!-- JS rows -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- ================= MY BIN VIEW ================= -->
+        <div id="view-mybin" class="page-view hide space-y-6">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="card">
+              <h3 class="text-lg font-bold mb-6 border-b pb-2">Bin Identity & Tech Specs</h3>
+              <div class="space-y-4">
+                <div class="flex justify-between items-center py-2 border-b"><span class="text-gray-500 font-medium">Bin ID</span><span class="bg-gray-100 px-2 py-1 rounded font-mono font-bold text-gray-800" id="mybin-id">BIN-001</span></div>
+                <div class="flex justify-between items-center py-2 border-b"><span class="text-gray-500 font-medium">User ID</span><span class="font-mono font-bold text-gray-800" id="mybin-user">USER-001</span></div>
+                <div class="flex justify-between items-center py-2 border-b"><span class="text-gray-500 font-medium">NFC Tag UID</span><span class="font-mono font-bold text-gray-600" id="mybin-tag">--</span></div>
+                <div class="flex justify-between items-center py-2 border-b"><span class="text-gray-500 font-medium">BLE Signal Status</span><span class="font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded text-xs" id="mybin-signal">IDLE</span></div>
+                <div class="flex justify-between items-center py-2"><span class="text-gray-500 font-medium">Last Cloud Sync</span><span class="font-mono font-bold text-gray-700" id="mybin-sync">--</span></div>
+              </div>
+            </div>
+            <div class="card flex flex-col items-center">
+              <h3 class="text-lg font-bold mb-6 w-full text-left border-b pb-2">Live Fill Level</h3>
+              <div class="bin-container mb-6 shadow-inner">
+                <div class="bin-lid shadow-md"></div>
+                <div class="bin-fill low" id="mybin-fill" style="height: 0%;"></div>
+                <div class="absolute inset-0 flex items-center justify-center font-bold text-white text-3xl text-shadow" style="text-shadow: 1px 1px 4px rgba(0,0,0,0.8);" id="mybin-pct">0%</div>
+              </div>
+              <p class="text-sm text-gray-500 text-center bg-blue-50 p-3 rounded border border-blue-100">
+                <strong class="text-blue-700">Digital Twin Info:</strong> The fill level is simulated based on total deposits compared to a standard 10kg capacity per bin.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- ================= ACTIVITY VIEW ================= -->
+        <div id="view-activity" class="page-view hide space-y-6">
+          <div class="card">
+            <h3 class="text-lg font-bold mb-4">Historical Waste Deposits</h3>
+            <div class="overflow-x-auto rounded-lg border border-gray-200 shadow-sm">
+              <table class="w-full text-left text-sm whitespace-nowrap">
+                <thead>
+                  <tr class="bg-gray-100 text-gray-700 border-b border-gray-300">
+                    <th class="p-3 font-bold">Time</th>
+                    <th class="p-3 font-bold">Classification</th>
+                    <th class="p-3 font-bold text-right">Waste Amount</th>
+                    <th class="p-3 font-bold text-right">Credits Earned</th>
+                    <th class="p-3 font-bold text-right">Fines Incurred</th>
+                    <th class="p-3 font-bold">Station</th>
+                  </tr>
+                </thead>
+                <tbody id="activity-table" class="divide-y divide-gray-200">
+                  <!-- JS rows -->
+                </tbody>
+              </table>
+            </div>
+            <div id="activity-empty" class="text-center py-8 text-gray-500 font-medium hide">No activity recorded yet.</div>
+          </div>
+        </div>
+
+        <!-- ================= CREDITS VIEW ================= -->
+        <div id="view-credits" class="page-view hide space-y-6">
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div class="card lg:col-span-1 bg-gradient-to-br from-green-50 to-green-100 border border-green-200 shadow-sm h-full flex flex-col">
+              <div class="stat-label text-green-800">Available Balance</div>
+              <div class="stat-value text-green-700 mt-2 text-5xl font-extrabold" id="credits-total">0</div>
+              <div class="mt-8 flex-1">
+                <h4 class="font-bold text-green-800 mb-2 border-b border-green-200 pb-1">How to Earn</h4>
+                <ul class="text-sm text-green-700 space-y-2 list-disc pl-4">
+                  <li>Deposit pure organic food waste.</li>
+                  <li>1 kg of organic waste = <strong>10 Credits</strong>.</li>
+                  <li>Ensure no plastic, metal, or inorganic materials are present.</li>
+                </ul>
+              </div>
+            </div>
+            <div class="card lg:col-span-2">
+              <h3 class="text-lg font-bold mb-4">Credit Transaction Ledger</h3>
+              <div class="overflow-x-auto rounded border border-gray-200">
+                <table class="w-full text-left text-sm whitespace-nowrap">
+                  <thead>
+                    <tr class="bg-gray-50 text-gray-600 border-b">
+                      <th class="p-3 font-bold">Timestamp</th>
+                      <th class="p-3 font-bold">Description</th>
+                      <th class="p-3 font-bold text-right">Change</th>
+                    </tr>
+                  </thead>
+                  <tbody id="credits-table" class="divide-y divide-gray-100">
+                  </tbody>
+                </table>
+              </div>
+              <div id="credits-empty" class="text-center py-8 text-gray-500 font-medium hide">No credit transactions yet.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ================= FINES VIEW ================= -->
+        <div id="view-fines" class="page-view hide space-y-6">
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div class="card lg:col-span-1 bg-gradient-to-br from-red-50 to-red-100 border border-red-200 shadow-sm h-full flex flex-col">
+              <div class="stat-label text-red-800">Total Penalty Flags</div>
+              <div class="stat-value text-red-700 mt-2 text-5xl font-extrabold" id="fines-total">0</div>
+              <div class="mt-8 flex-1">
+                <h4 class="font-bold text-red-800 mb-2 border-b border-red-200 pb-1">Penalty Rules</h4>
+                <ul class="text-sm text-red-700 space-y-2 list-disc pl-4">
+                  <li>Issued when inorganic material is detected.</li>
+                  <li>Issued for high contamination levels.</li>
+                  <li>Contaminated batches are rejected and do not earn credits.</li>
+                  <li>Repeated offenses may result in account suspension.</li>
+                </ul>
+              </div>
+            </div>
+            <div class="card lg:col-span-2">
+              <h3 class="text-lg font-bold mb-4">Penalty History</h3>
+              <div class="overflow-x-auto rounded border border-gray-200">
+                <table class="w-full text-left text-sm whitespace-nowrap">
+                  <thead>
+                    <tr class="bg-gray-50 text-gray-600 border-b">
+                      <th class="p-3 font-bold">Timestamp</th>
+                      <th class="p-3 font-bold">Reason</th>
+                      <th class="p-3 font-bold text-center">Fines Applied</th>
+                    </tr>
+                  </thead>
+                  <tbody id="fines-table" class="divide-y divide-gray-100">
+                  </tbody>
+                </table>
+              </div>
+              <div id="fines-empty" class="text-center py-8 text-gray-500 font-medium hide">No penalties on record. Great job!</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ================= LEADERBOARD VIEW ================= -->
+        <div id="view-leaderboard" class="page-view hide space-y-6">
+          <div class="card">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+              <h3 class="text-xl font-bold">Community Leaderboard</h3>
+              <div class="flex items-center gap-2">
+                <label class="text-sm font-medium text-gray-600 whitespace-nowrap">Rank by:</label>
+                <select id="leaderboard-metric" class="border-gray-300 rounded p-2 text-sm border font-medium outline-none bg-gray-50 focus:border-green-500">
+                  <option value="credits">Total Credits</option>
+                  <option value="waste">Waste Processed (kg)</option>
+                  <option value="clean">Clean Drops Count</option>
+                  <option value="contam">Contamination Rate (Lowest First)</option>
+                </select>
+              </div>
+            </div>
+            
+            <div class="overflow-x-auto rounded-lg border border-gray-200 shadow-sm mb-6">
+              <table class="w-full text-left text-sm whitespace-nowrap">
+                <thead>
+                  <tr class="bg-gray-800 text-white border-b border-gray-300">
+                    <th class="p-3 font-bold text-center w-16">Rank</th>
+                    <th class="p-3 font-bold">User</th>
+                    <th class="p-3 font-bold text-right">Credits</th>
+                    <th class="p-3 font-bold text-right">Waste (kg)</th>
+                    <th class="p-3 font-bold text-right">Clean</th>
+                    <th class="p-3 font-bold text-right">Contam %</th>
+                  </tr>
+                </thead>
+                <tbody id="leaderboard-table" class="divide-y divide-gray-200">
+                </tbody>
+              </table>
+            </div>
+            
+            <!-- Selected Profile Panel -->
+            <div id="lb-profile" class="hide border-2 border-green-500 rounded-lg p-5 bg-green-50 relative shadow-md mt-6">
+              <button class="absolute top-3 right-3 text-gray-500 hover:text-red-500 bg-white rounded-full p-1 shadow" onclick="document.getElementById('lb-profile').classList.add('hide')">✕</button>
+              <h3 class="text-lg font-bold mb-4 border-b border-green-200 pb-2 text-green-800 flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd" /></svg>
+                Public Profile Snapshot
+              </h3>
+              <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div class="bg-white p-3 rounded border border-green-100 shadow-sm"><span class="text-gray-500 text-xs uppercase font-bold block mb-1">User</span><span class="font-bold text-gray-800 text-lg" id="lb-p-name"></span></div>
+                <div class="bg-white p-3 rounded border border-green-100 shadow-sm"><span class="text-gray-500 text-xs uppercase font-bold block mb-1">Bin ID</span><span class="font-mono font-bold text-gray-600" id="lb-p-bin"></span></div>
+                <div class="bg-white p-3 rounded border border-green-100 shadow-sm"><span class="text-gray-500 text-xs uppercase font-bold block mb-1">Rank</span><span class="font-bold text-green-600 text-xl" id="lb-p-rank"></span></div>
+                <div class="bg-white p-3 rounded border border-green-100 shadow-sm"><span class="text-gray-500 text-xs uppercase font-bold block mb-1">Credits</span><span class="font-bold text-blue-600 text-xl" id="lb-p-cred"></span></div>
+                
+                <div class="bg-white p-3 rounded border border-green-100 shadow-sm"><span class="text-gray-500 text-xs uppercase font-bold block mb-1">Total Waste</span><span class="font-bold text-gray-800" id="lb-p-waste"></span></div>
+                <div class="bg-white p-3 rounded border border-green-100 shadow-sm"><span class="text-gray-500 text-xs uppercase font-bold block mb-1">Clean Drops</span><span class="font-bold text-green-500 text-lg" id="lb-p-clean"></span></div>
+                <div class="bg-white p-3 rounded border border-green-100 shadow-sm"><span class="text-gray-500 text-xs uppercase font-bold block mb-1">Contam Drops</span><span class="font-bold text-red-500 text-lg" id="lb-p-contam"></span></div>
+                <div class="bg-white p-3 rounded border border-green-100 shadow-sm"><span class="text-gray-500 text-xs uppercase font-bold block mb-1">Purity Rate</span><span class="font-bold text-gray-800 text-lg" id="lb-p-pct"></span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ================= DOCKING STATIONS VIEW ================= -->
+        <div id="view-docking" class="page-view hide space-y-6">
+          <div class="card">
+            <h3 class="text-xl font-bold mb-2">Active Docking Station Monitor</h3>
+            <p class="text-sm text-gray-500 mb-6 pb-4 border-b">Displaying the currently active docking station from the digital twin simulation.</p>
+            
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div class="border border-gray-200 rounded-lg p-5 shadow-sm bg-gray-50 flex flex-col justify-between">
+                <div>
+                  <div class="flex items-center justify-between mb-4">
+                    <div class="font-mono font-bold text-2xl text-gray-800" id="dock-id">DOCK-XX</div>
+                    <span class="px-3 py-1 text-xs font-bold rounded-full bg-blue-100 text-blue-800" id="dock-state-badge">IDLE</span>
+                  </div>
+                  <div class="text-sm text-gray-500 mb-6">Edge Controller: Raspberry Pi 4<br>NFC Reader: PN532</div>
+                  
+                  <div class="space-y-3 mt-auto">
+                    <div class="flex justify-between items-center py-2 border-b border-gray-200"><span class="text-gray-600 text-sm font-medium">Container ID</span><span class="font-mono font-bold bg-white px-2 py-1 rounded shadow-sm text-sm" id="dock-container">--</span></div>
+                    <div class="flex justify-between items-center py-2 border-b border-gray-200"><span class="text-gray-600 text-sm font-medium">Connected User</span><span class="font-mono font-bold bg-white px-2 py-1 rounded shadow-sm text-sm text-green-700" id="dock-user">--</span></div>
+                    <div class="flex justify-between items-center py-2 border-b border-gray-200"><span class="text-gray-600 text-sm font-medium">Current Status</span><span class="font-bold text-gray-800 text-sm" id="dock-state">IDLE</span></div>
+                  </div>
+                </div>
+              </div>
+              
+              <div class="border border-gray-200 rounded-lg p-5 shadow-sm lg:col-span-2">
+                <h4 class="font-bold mb-4 text-gray-700 flex items-center gap-2 border-b pb-2">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" /></svg>
+                  Live Handshake & Telemetry
+                </h4>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4 text-sm">
+                  <div class="flex justify-between items-center py-2 border-b border-gray-100"><span class="text-gray-500 font-medium">BLE 5.0 Link</span><span class="font-bold font-mono text-xs px-2 py-1 bg-gray-100 rounded" id="dock-ble">IDLE</span></div>
+                  <div class="flex justify-between items-center py-2 border-b border-gray-100"><span class="text-gray-500 font-medium">NFC Read</span><span class="font-bold font-mono text-xs px-2 py-1 bg-gray-100 rounded" id="dock-nfc">IDLE</span></div>
+                  <div class="flex justify-between items-center py-2 border-b border-gray-100"><span class="text-gray-500 font-medium">Auth Verification</span><span class="font-bold text-xs px-2 py-1 rounded" id="dock-auth">PENDING</span></div>
+                  <div class="flex justify-between items-center py-2 border-b border-gray-100"><span class="text-gray-500 font-medium">Session ID</span><span class="font-mono font-bold text-gray-700" id="dock-session">--</span></div>
+                  <div class="flex justify-between items-center py-2 border-b border-gray-100"><span class="text-gray-500 font-medium">Batch Mass Measured</span><span class="font-mono font-bold text-blue-600" id="dock-batch">--</span></div>
+                  <div class="flex justify-between items-center py-2 border-b border-gray-100"><span class="text-gray-500 font-medium">Session Result</span><span class="font-bold uppercase" id="dock-result">--</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ================= LIVE DIGITAL TWIN VIEW ================= -->
+        <div id="view-twin" class="page-view hide space-y-6">
+          <div class="card bg-gray-900 text-white shadow-xl border border-gray-800">
+            <div class="flex justify-between items-center mb-6 border-b border-gray-700 pb-4">
+              <h3 class="text-xl font-bold flex items-center gap-3">
+                <div class="relative flex h-4 w-4">
+                  <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                  <span class="relative inline-flex rounded-full h-4 w-4 bg-green-500"></span>
+                </div>
+                Live System Operations
+              </h3>
+              <div class="text-xs font-mono text-gray-400" id="twin-time"></div>
+            </div>
+            
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+              <div class="bg-gray-800 border border-gray-700 p-4 rounded-lg text-center shadow">
+                <div class="text-xs text-gray-400 mb-2 uppercase tracking-wider font-semibold">System Waste</div>
+                <div class="text-3xl font-mono font-bold text-blue-400" id="twin-total-waste">0.0 kg</div>
+              </div>
+              <div class="bg-gray-800 border border-gray-700 p-4 rounded-lg text-center shadow relative overflow-hidden">
+                <div class="absolute bottom-0 left-0 w-full bg-green-900/30 transition-all duration-500" id="twin-sump-bg" style="height: 0%"></div>
+                <div class="relative z-10">
+                  <div class="text-xs text-gray-400 mb-2 uppercase tracking-wider font-semibold">Slurry Sump</div>
+                  <div class="text-3xl font-mono font-bold text-green-400" id="twin-sump">0%</div>
+                </div>
+              </div>
+              <div class="bg-gray-800 border border-gray-700 p-4 rounded-lg text-center shadow">
+                <div class="text-xs text-gray-400 mb-2 uppercase tracking-wider font-semibold">Macerator</div>
+                <div class="text-2xl font-bold mt-1" id="twin-mac">OFF</div>
+              </div>
+              <div class="bg-gray-800 border border-gray-700 p-4 rounded-lg text-center shadow">
+                <div class="text-xs text-gray-400 mb-2 uppercase tracking-wider font-semibold">Diverter Valve</div>
+                <div class="text-xl font-bold mt-2" id="twin-div">NEUTRAL</div>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+               <div class="bg-gray-800 border border-gray-700 p-4 rounded-lg flex justify-between items-center">
+                 <span class="text-sm font-semibold text-gray-400 uppercase tracking-wider">Bottom Hatch</span>
+                 <span class="font-mono font-bold text-lg" id="twin-hatch">LOCKED</span>
+               </div>
+               <div class="bg-gray-800 border border-gray-700 p-4 rounded-lg flex justify-between items-center">
+                 <span class="text-sm font-semibold text-gray-400 uppercase tracking-wider">Slurry Transferred</span>
+                 <span class="font-mono font-bold text-lg text-blue-300" id="twin-transferred">0.00 kg</span>
+               </div>
+            </div>
+
+            <h4 class="text-sm font-bold text-gray-400 uppercase mb-3 tracking-wider flex justify-between">
+              <span>Simulation Event Log</span>
+              <span class="text-xs normal-case text-gray-500">Read-only connection</span>
+            </h4>
+            <div class="bg-black rounded-lg border border-gray-700 p-4 h-64 overflow-y-auto font-mono text-sm leading-relaxed shadow-inner" id="twin-logs">
+              <!-- Logs populated via JS -->
+            </div>
+          </div>
+        </div>
+
+        <!-- ================= OVERVIEW VIEW ================= -->
+        <div id="view-overview" class="page-view hide space-y-6">
+          <div class="card shadow-lg border border-green-100">
+            <h3 class="text-xl font-bold mb-8 text-center text-green-800">System Architecture & Data Flow</h3>
+            <div class="max-w-2xl mx-auto flex flex-col bg-gray-50 p-6 rounded-xl border border-gray-200">
+              <div class="flow-box shadow-md">
+                <div class="font-bold text-lg">User Account & Smart Bin</div>
+                <span class="text-xs font-normal text-gray-600 block mt-1">Household Level Registration & Association</span>
+              </div>
+              <div class="flow-arrow">↓</div>
+              <div class="flow-box shadow-md">
+                <div class="font-bold text-lg">Waste Deposit</div>
+                <span class="text-xs font-normal text-gray-600 block mt-1">NFC/BLE Auth + Primary Load Sensors</span>
+              </div>
+              <div class="flow-arrow">↓</div>
+              <div class="flow-box shadow-md">
+                <div class="font-bold text-lg">Docking Station / Flatbed</div>
+                <span class="text-xs font-normal text-gray-600 block mt-1">Secondary Scrutiny & Multisensor Classification</span>
+              </div>
+              <div class="flow-arrow">↓</div>
+              <div class="grid grid-cols-2 gap-6 my-2">
+                <div class="flow-box border-green-500 text-green-800 bg-green-50 shadow-md">
+                  <div class="font-bold text-lg">Clean Waste</div>
+                  <span class="text-xs font-normal text-green-700 block mt-1">Accepted → Earns Credits</span>
+                </div>
+                <div class="flow-box border-red-500 text-red-800 bg-red-50 shadow-md">
+                  <div class="font-bold text-lg">Contaminated</div>
+                  <span class="text-xs font-normal text-red-700 block mt-1">Rejected → Incurs Penalty</span>
+                </div>
+              </div>
+              <div class="flow-arrow">↓</div>
+              <div class="flow-box shadow-md">
+                <div class="font-bold text-lg">Waste Processing</div>
+                <span class="text-xs font-normal text-gray-600 block mt-1">Macerator → Slurry Sump → Pipeline → Digester</span>
+              </div>
+              <div class="flow-arrow">↓</div>
+              <div class="flow-box bg-blue-600 border-blue-700 text-white shadow-lg mt-2">
+                <div class="font-bold text-lg">Digital Twin & Dashboard</div>
+                <span class="text-xs font-normal text-blue-100 block mt-1">Real-time Data Synchronization & Analytics</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ================= ABOUT & RULES VIEW ================= -->
+        <div id="view-about" class="page-view hide space-y-6">
+          <div class="card text-gray-700 leading-relaxed">
+            <h3 class="text-2xl font-bold mb-4 text-gray-900 border-b pb-4">About the Organic Waste System</h3>
+            <p class="mb-4">This platform serves as the interactive dashboard for the <strong>Smart Organic Waste Processing Live Digital Twin</strong>. The system digitally tracks physical waste processes from the point of household disposal all the way to anaerobic digestion.</p>
+            <p class="mb-8">By ensuring accurate segregation of organic waste at the source, you help produce sustainable biogas and nutrient-rich digestate while participating in a community-driven reward ecosystem.</p>
+            
+            <h4 class="text-xl font-bold mt-8 mb-4 text-gray-900 border-b pb-2">Rules & Guidelines</h4>
+            <ul class="space-y-4">
+              <li class="flex items-start">
+                <svg class="h-6 w-6 text-green-500 mr-2 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                <div><strong>Only Organic Food Waste:</strong> Ensure only pure organic food scraps are deposited into your assigned Smart Bin.</div>
+              </li>
+              <li class="flex items-start">
+                <svg class="h-6 w-6 text-green-500 mr-2 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                <div><strong>Earn Credits:</strong> Clean deposits, verified by the docking station's secondary sensors, earn credit points. 1kg of organic waste equals 10 credits.</div>
+              </li>
+              <li class="flex items-start">
+                <svg class="h-6 w-6 text-red-500 mr-2 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                <div><strong>Contamination Penalties:</strong> If the flatbed scrutiny layer detects inorganic materials (e.g., metals, plastics) or hidden contaminants, the batch is automatically rejected and diverted. You will not receive credits, and a penalty flag will be recorded on your account.</div>
+              </li>
+              <li class="flex items-start">
+                <svg class="h-6 w-6 text-blue-500 mr-2 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+                <div><strong>Bin Authentication:</strong> Your bin is exclusively paired to your user account. Docking stations use NFC tags and BLE 5.0 handshakes to verify ownership before unlocking the hatch.</div>
+              </li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- ================= PROFILE VIEW ================= -->
+        <div id="view-profile" class="page-view hide space-y-6">
+          <div class="card max-w-2xl mx-auto shadow-lg">
+            <h3 class="text-xl font-bold mb-8 text-center border-b pb-4 text-gray-800">Account Profile</h3>
+            <div class="flex flex-col sm:flex-row items-center gap-6 mb-8 bg-gray-50 p-6 rounded-xl border border-gray-200">
+              <div class="w-24 h-24 rounded-full bg-green-200 flex items-center justify-center text-green-800 font-bold text-4xl shadow-inner shrink-0" id="prof-avatar">U</div>
+              <div class="text-center sm:text-left">
+                <h4 class="text-3xl font-bold text-gray-900" id="prof-name">Name</h4>
+                <div class="text-gray-500 font-mono mt-1" id="prof-id">ID</div>
+                <div class="mt-3 inline-block bg-green-100 text-green-800 text-xs px-3 py-1 rounded-full font-bold">ACTIVE PARTICIPANT</div>
+              </div>
+            </div>
+            
+            <h4 class="font-bold text-gray-700 mb-4 uppercase tracking-wider text-sm">Account Statistics</h4>
+            <div class="space-y-1 bg-white border border-gray-200 rounded-lg overflow-hidden">
+              <div class="flex justify-between p-4 border-b bg-gray-50 hover:bg-gray-100 transition"><span class="text-gray-600 font-medium">Assigned Hardware Bin</span><span class="font-bold font-mono text-gray-800 bg-white px-2 py-1 rounded border shadow-sm" id="prof-bin"></span></div>
+              <div class="flex justify-between p-4 border-b hover:bg-gray-50 transition"><span class="text-gray-600 font-medium">Lifetime Credits Earned</span><span class="font-bold text-green-600 text-lg" id="prof-cred"></span></div>
+              <div class="flex justify-between p-4 border-b hover:bg-gray-50 transition"><span class="text-gray-600 font-medium">Lifetime Penalty Flags</span><span class="font-bold text-red-600 text-lg" id="prof-pen"></span></div>
+              <div class="flex justify-between p-4 hover:bg-gray-50 transition"><span class="text-gray-600 font-medium">Clean Deposit Purity</span><span class="font-bold text-blue-600 text-lg" id="prof-rate"></span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ================= ADMIN VIEW ================= -->
+        <div id="view-admin" class="page-view hide space-y-6">
+          <div class="card shadow-md">
+            <h3 class="text-xl font-bold mb-6 border-b pb-2 text-gray-800">System Administration Overview</h3>
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+              <div class="p-5 bg-white border border-gray-200 shadow-sm rounded-lg text-center">
+                <div class="text-3xl font-bold text-gray-800" id="adm-users">0</div>
+                <div class="text-xs text-gray-500 uppercase mt-2 font-bold tracking-wider">Registered Users</div>
+              </div>
+              <div class="p-5 bg-white border border-gray-200 shadow-sm rounded-lg text-center">
+                <div class="text-3xl font-bold text-blue-600 font-mono" id="adm-waste">0.0</div>
+                <div class="text-xs text-gray-500 uppercase mt-2 font-bold tracking-wider">Total Waste (kg)</div>
+              </div>
+              <div class="p-5 bg-green-50 border border-green-200 shadow-sm rounded-lg text-center">
+                <div class="text-3xl font-bold text-green-600" id="adm-clean">0</div>
+                <div class="text-xs text-green-700 uppercase mt-2 font-bold tracking-wider">Clean Deposits</div>
+              </div>
+              <div class="p-5 bg-red-50 border border-red-200 shadow-sm rounded-lg text-center">
+                <div class="text-3xl font-bold text-red-600" id="adm-contam">0</div>
+                <div class="text-xs text-red-700 uppercase mt-2 font-bold tracking-wider">Contam. Deposits</div>
+              </div>
+            </div>
+            
+            <div class="flex justify-between items-center mb-4">
+              <h4 class="font-bold text-gray-800">User & Hardware Directory</h4>
+            </div>
+            <div class="overflow-x-auto border border-gray-200 rounded-lg shadow-sm">
+              <table class="w-full text-left text-sm whitespace-nowrap">
+                <thead>
+                  <tr class="bg-gray-800 text-white border-b">
+                    <th class="p-3 font-bold uppercase tracking-wider text-xs">User ID</th>
+                    <th class="p-3 font-bold uppercase tracking-wider text-xs">Bin ID</th>
+                    <th class="p-3 font-bold uppercase tracking-wider text-xs text-right">Credits</th>
+                    <th class="p-3 font-bold uppercase tracking-wider text-xs text-right">Fines</th>
+                    <th class="p-3 font-bold uppercase tracking-wider text-xs text-right">Waste (kg)</th>
+                    <th class="p-3 font-bold uppercase tracking-wider text-xs text-center">Hardware Status</th>
+                  </tr>
+                </thead>
+                <tbody id="admin-user-table" class="divide-y divide-gray-200">
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+      </main>
+    </div>
+  </div>
+
+  <script src="admin.js"></script>
+</body>
+</html>

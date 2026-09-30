@@ -1,0 +1,1677 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Organic Waste Processing — Live Digital Twin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ------------------------------------------------------------------
+   Tokens. Text is pure white on dark; hierarchy comes from size,
+   weight and layout, not from gray. Cyan / green / red are reserved
+   for status only.
+------------------------------------------------------------------ */
+:root{
+  --bg:#070F18;
+  --panel:#0D1926;
+  --panel-2:#122234;
+  --panel-3:#193049;
+  --line:#243A50;
+  --line-strong:#476280;
+  --text:#FFFFFF;
+  --cyan:#2CC8F4;
+  --green:#36D683;
+  --red:#FF5B52;
+  --on-accent:#03131D;
+  --arrow:#A9C0D4;
+  --font-sans:'IBM Plex Sans',system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;
+  --font-mono:'IBM Plex Mono',ui-monospace,SFMono-Regular,Consolas,'Liberation Mono',monospace;
+  --speed-scale:1;
+  color-scheme:dark;
+}
+:root[data-theme="light"]{
+  --bg:#EAF0F5;
+  --panel:#FFFFFF;
+  --panel-2:#F4F8FB;
+  --panel-3:#DFE9F1;
+  --line:#C6D5E1;
+  --line-strong:#7F98AE;
+  --text:#08131D;
+  --cyan:#0A86B3;
+  --green:#12804A;
+  --red:#C9302A;
+  --on-accent:#FFFFFF;
+  --arrow:#456074;
+  color-scheme:light;
+}
+
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:var(--font-sans);font-size:15px;line-height:1.4;}
+body{min-height:100vh;display:flex;flex-direction:column;overflow-x:hidden;background:var(--bg);}
+button{font-family:inherit;}
+button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px;}
+
+.ok{color:var(--green);fill:var(--green);}
+.warn{color:var(--red);fill:var(--red);}
+.info{color:var(--cyan);fill:var(--cyan);}
+
+.wrap{width:100%;max-width:1600px;margin:0 auto;padding:18px 24px 28px;display:flex;flex-direction:column;gap:16px;flex:1;}
+
+/* ---------- Header ---------- */
+.top{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;padding-bottom:14px;border-bottom:1px solid var(--line);}
+.top h1{margin:0;font-size:26px;font-weight:600;letter-spacing:.005em;}
+.top .sub{margin:3px 0 0;font-size:16px;}
+.top-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+.online{display:inline-flex;align-items:center;gap:9px;font:600 15px var(--font-mono);color:var(--green);padding:8px 13px;border:1px solid var(--green);}
+.online i{display:inline-block;width:10px;height:10px;background:var(--green);}
+.btn{background:transparent;color:var(--text);border:1px solid var(--line-strong);padding:9px 15px;font:500 15px var(--font-sans);cursor:pointer;border-radius:2px;}
+.btn:hover:not(:disabled){border-color:var(--cyan);}
+.btn:disabled{opacity:.4;cursor:not-allowed;}
+.btn.stop{border-color:var(--red);color:var(--red);}
+.btn.stop:disabled{border-color:var(--line-strong);color:var(--text);}
+
+/* ---------- Panels ---------- */
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:2px;}
+.panel-head{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;padding:12px 18px;background:var(--panel-3);border-bottom:1px solid var(--line);}
+.panel-head h2{margin:0;font-size:17px;font-weight:600;}
+.head-meta{display:flex;gap:26px;flex-wrap:wrap;font-size:15px;}
+.head-meta b{font:600 16px var(--font-mono);margin-left:6px;}
+
+/* ---------- Scenarios ---------- */
+.scn-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:10px;padding:14px 18px;}
+.scn{text-align:left;padding:13px 15px;background:var(--panel-2);border:1px solid var(--line-strong);color:var(--text);font:500 16px var(--font-sans);cursor:pointer;border-radius:2px;}
+.scn:hover:not(:disabled){border-color:var(--cyan);}
+.scn:disabled{opacity:.45;cursor:not-allowed;}
+.scn.primary{border-left:4px solid var(--cyan);}
+
+/* ---------- Phase steps ---------- */
+.steps{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(9,minmax(0,1fr));border-bottom:1px solid var(--line);}
+.step{padding:11px 8px 9px;font:500 14px var(--font-sans);text-align:center;border-right:1px solid var(--line);border-bottom:4px solid transparent;}
+.step:last-child{border-right:0;}
+.step .n{font:600 13px var(--font-mono);margin-right:7px;}
+.step.on{background:var(--panel-2);border-bottom-color:var(--cyan);font-weight:600;}
+.step.done{border-bottom-color:var(--green);}
+
+/* ---------- Result bar ---------- */
+.result{display:flex;gap:18px;align-items:center;flex-wrap:wrap;padding:13px 18px;border-bottom:1px solid var(--line);border-left:6px solid var(--green);background:var(--panel-2);}
+.result[hidden]{display:none;}
+.result.warn{border-left-color:var(--red);}
+.result .r-title{font:600 17px var(--font-sans);}
+.result .r-sub{font:500 15px var(--font-mono);}
+.result .chips{display:flex;gap:8px;flex-wrap:wrap;}
+.chip{font:600 13px var(--font-mono);padding:4px 10px;border:1px solid var(--green);color:var(--green);}
+.result.warn .chip{border-color:var(--red);color:var(--red);}
+.result .btn{margin-left:auto;padding:5px 12px;font-size:14px;}
+
+/* ---------- Schematic ---------- */
+.svg-wrap{overflow-x:auto;padding:14px 18px 18px;}
+svg#schematic{display:block;width:100%;min-width:980px;height:auto;}
+
+.conn{fill:none;stroke:var(--line-strong);stroke-width:2.5;marker-end:url(#arrow);}
+.conn.active{stroke:var(--cyan);}
+.conn.accept{stroke:var(--green);}
+.conn.reject{stroke:var(--red);}
+.arrowhead{fill:var(--arrow);}
+.eq{fill:var(--panel-2);stroke:var(--line-strong);stroke-width:2;}
+.eq.active{stroke:var(--cyan);stroke-width:3;}
+.eq.accept{stroke:var(--green);stroke-width:3;}
+.eq.reject{stroke:var(--red);stroke-width:3;}
+.eq-head{fill:var(--panel-3);}
+.sub-box{fill:var(--bg);stroke:var(--line-strong);stroke-width:1.5;}
+.sub-box.active{stroke:var(--cyan);}
+.tt{font:600 17px var(--font-sans);fill:var(--text);}
+.rl{font:500 15px var(--font-sans);fill:var(--text);}
+.rv{font:600 15px var(--font-mono);fill:var(--text);text-anchor:end;}
+.rv.mid{text-anchor:middle;}
+.cl{font:500 13px var(--font-sans);fill:var(--text);text-anchor:middle;}
+.cl.start{text-anchor:start;}
+.rv.ok,.rv.warn,.rv.info{}
+.hatch{fill:var(--line-strong);}
+.hatch.locked{fill:var(--red);}
+.hatch.ready{fill:var(--cyan);}
+.hatch.open{fill:var(--green);}
+.blades{fill:none;stroke:var(--text);stroke-width:3;}
+.blades.b-ok{stroke:var(--green);}
+.blades.b-warn{stroke:var(--red);}
+.blades.b-info{stroke:var(--cyan);}
+#yGate{transform-box:fill-box;transform-origin:0% 50%;transition:transform .5s ease;transform:rotate(45deg);}
+#yGate path{fill:none;stroke:var(--text);stroke-width:6;stroke-linecap:round;}
+#yGate.organic{transform:rotate(90deg);}
+#yGate.organic path{stroke:var(--green);}
+#yGate.reject{transform:rotate(0deg);}
+#yGate.reject path{stroke:var(--red);}
+#yHub{fill:var(--text);}
+#scanBeam{opacity:0;fill:var(--cyan);}
+#scanBeam.scanning{opacity:1;animation:scan calc(1.1s / var(--speed-scale)) linear infinite;}
+@keyframes scan{from{transform:translateX(0);}to{transform:translateX(272px);}}
+body.paused #scanBeam{animation-play-state:paused;}
+#sumpFill{fill:var(--green);opacity:.8;transform-box:fill-box;transform-origin:50% 100%;transform:scaleY(0);transition:transform .6s ease;}
+#pipeFill{fill:var(--cyan);transform-box:fill-box;transform-origin:100% 50%;transform:scaleX(0);}
+#pipeFill.done{fill:var(--green);}
+.swatch{stroke:var(--line-strong);stroke-width:1.5;}
+.token text{font:600 14px var(--font-sans);fill:var(--text);text-anchor:middle;paint-order:stroke;stroke:var(--panel-2);stroke-width:4px;stroke-linejoin:round;}
+.token .body{fill:var(--green);stroke:var(--panel-2);stroke-width:2;transform-box:fill-box;transform-origin:center;transition:transform .5s ease;}
+.token.spreading .body{transform:scale(2.6,.7);}
+.token .mark{fill:var(--red);opacity:0;transition:opacity .3s;}
+.token.revealed .mark{opacity:1;}
+.token.slurried{opacity:0;}
+
+/* ---------- Key/value tables ---------- */
+table{border-collapse:collapse;width:100%;}
+.kv th{font-weight:500;font-size:15px;text-align:left;padding:9px 0;border-bottom:1px solid var(--line);}
+.kv td{font:600 16px var(--font-mono);text-align:right;padding:9px 0;border-bottom:1px solid var(--line);}
+.kv tr:last-child th,.kv tr:last-child td{border-bottom:0;}
+
+/* ---------- Docking station ---------- */
+.dock-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));}
+.dock-col{padding:14px 20px 12px;border-right:1px solid var(--line);}
+.dock-col:last-child{border-right:0;}
+.dock-col h3{margin:0 0 4px;font-size:16px;font-weight:600;padding-bottom:9px;border-bottom:2px solid var(--line-strong);}
+
+/* ---------- Data cards ---------- */
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px;}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:2px;}
+.card h2{margin:0;padding:12px 18px;font-size:17px;font-weight:600;background:var(--panel-3);border-bottom:1px solid var(--line);}
+.card .body{padding:6px 18px 16px;}
+.bar{height:11px;background:var(--bg);border:1px solid var(--line-strong);margin-top:6px;}
+.bar i{display:block;height:100%;width:0;background:var(--green);transition:width .5s ease;}
+.field-label{font-size:15px;margin:14px 0 6px;font-weight:500;}
+.seg{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid var(--line-strong);}
+.seg button{background:transparent;color:var(--text);border:0;border-right:1px solid var(--line-strong);padding:10px 4px;font:600 14px var(--font-mono);cursor:pointer;}
+.seg button:last-child{border-right:0;}
+.seg button:hover{background:var(--panel-3);}
+.seg button.sel{background:var(--cyan);color:var(--on-accent);}
+
+/* ---------- Log tables ---------- */
+.logs{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:16px;}
+.tscroll{max-height:360px;overflow:auto;}
+table.grid th{position:sticky;top:0;z-index:1;background:var(--panel-3);text-align:left;padding:10px 14px;font-size:14px;font-weight:600;border-bottom:1px solid var(--line-strong);white-space:nowrap;}
+table.grid td{padding:9px 14px;font-size:15px;border-bottom:1px solid var(--line);vertical-align:top;}
+table.grid td.mono{font-family:var(--font-mono);font-size:14px;white-space:nowrap;}
+table.grid td.lvl{font:600 14px var(--font-mono);white-space:nowrap;}
+table.grid td.lvl.info{color:var(--cyan);}
+table.grid td.lvl.ok{color:var(--green);}
+table.grid td.lvl.warn{color:var(--red);}
+table.grid td.num{font-family:var(--font-mono);font-weight:600;text-align:right;}
+table.grid th.num{text-align:right;}
+.tscroll.wide{max-height:none;overflow-x:auto;}
+
+/* ---------- Network ---------- */
+.chain{display:flex;align-items:stretch;gap:0;flex-wrap:wrap;padding:14px 18px 6px;}
+.chain .node{flex:1 1 200px;border:1px solid var(--line-strong);padding:11px 14px;background:var(--panel-2);}
+.chain .node b{display:block;font-size:16px;font-weight:600;}
+.chain .node span{font-size:14px;}
+.chain .link{align-self:center;padding:0 10px;font:600 18px var(--font-mono);}
+
+.foot{font-size:14px;padding:2px 2px 0;}
+
+/* ---------- Control bar ---------- */
+.control-bar{position:sticky;bottom:0;z-index:20;display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:11px 24px;background:var(--panel);border-top:1px solid var(--line-strong);}
+.control-bar .grp{display:flex;align-items:center;gap:8px;}
+.control-bar .spacer{flex:1;}
+.spd{background:transparent;color:var(--text);border:1px solid var(--line-strong);padding:8px 13px;font:600 14px var(--font-mono);cursor:pointer;border-radius:2px;}
+.spd.active{background:var(--cyan);color:var(--on-accent);border-color:var(--cyan);}
+.control-bar .lab{font-size:15px;font-weight:500;}
+
+/* ---------- Architecture modal ---------- */
+#archModal{position:fixed;inset:0;background:rgba(3,8,13,.82);display:none;align-items:center;justify-content:center;z-index:90;padding:16px;}
+#archModal.show{display:flex;}
+.arch-card{background:var(--panel);border:1px solid var(--line-strong);padding:24px 28px;max-width:940px;width:100%;max-height:90vh;overflow-y:auto;}
+.arch-card h2{margin:0 0 16px;font-size:20px;font-weight:600;}
+.arch-flow{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:22px;}
+.arch-step{border:1px solid var(--cyan);padding:9px 11px;font:500 14px var(--font-sans);text-align:center;}
+.arch-sections{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:22px;}
+.arch-section h3{margin:0 0 10px;font-size:16px;font-weight:600;padding-bottom:8px;border-bottom:2px solid var(--line-strong);}
+.arch-parts{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:9px;font-size:14px;}
+.arch-parts li{padding-left:11px;border-left:2px solid var(--line-strong);}
+.arch-parts li b{display:block;font-size:15px;font-weight:600;}
+
+::-webkit-scrollbar{width:10px;height:10px;}
+::-webkit-scrollbar-thumb{background:var(--line-strong);}
+::-webkit-scrollbar-track{background:var(--panel);}
+
+@media (max-width:1100px){
+  .steps{grid-template-columns:repeat(3,minmax(0,1fr));}
+  .step{border-bottom:1px solid var(--line);}
+  .step.on{border-bottom:4px solid var(--cyan);}
+  .step.done{border-bottom:4px solid var(--green);}
+  .dock-grid{grid-template-columns:1fr;}
+  .dock-col{border-right:0;border-bottom:1px solid var(--line);}
+  .dock-col:last-child{border-bottom:0;}
+  .logs{grid-template-columns:1fr;}
+  .arch-flow{grid-template-columns:1fr;}
+}
+@media (max-width:640px){
+  .wrap{padding:14px 12px 24px;}
+  .top h1{font-size:22px;}
+  .control-bar{padding:10px 12px;}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <div>
+      <h1>Smart organic waste processing</h1>
+      <p class="sub">Live digital twin from point of disposal to anaerobic digestion</p>
+    </div>
+    <div class="top-actions">
+      <span class="online"><i></i>SYSTEM ONLINE</span>
+      <button class="btn" id="archBtn" type="button">Architecture</button>
+      <button class="btn" id="themeBtn" type="button">Light theme</button>
+    </div>
+  </header>
+
+  <section class="panel" aria-labelledby="scnTitle">
+    <div class="panel-head">
+      <h2 id="scnTitle">Simulation scenarios</h2>
+      <div class="head-meta" style="gap:12px;">
+        <select id="userSelect" class="btn" style="padding:4px 8px;">
+          <option value="USER-001">User 1</option>
+          <option value="USER-002">User 2</option>
+          <option value="USER-003">User 3</option>
+          <option value="USER-004">User 4</option>
+          <option value="USER-005">User 5</option>
+          <option value="USER-006">User 6</option>
+        </select>
+        <select id="dockSelect" class="btn" style="padding:4px 8px;">
+          <option value="DOCK-01">Station 1</option>
+          <option value="DOCK-02">Station 2</option>
+          <option value="DOCK-03">Station 3</option>
+        </select>
+      </div>
+    </div>
+    <div class="scn-grid">
+      <button class="scn" type="button" data-scn="credit">User credit success case</button>
+      <button class="scn" type="button" data-scn="penalty">User penalty / fine case</button>
+      <button class="scn" type="button" data-scn="stall">Macerator stall and auto-reverse</button>
+      <button class="scn" type="button" data-scn="pipeline">Slurry pipeline demo</button>
+      <button class="scn primary" type="button" data-scn="fulldemo">Complete end-to-end auto demo</button>
+      <button class="scn primary" type="button" data-scn="contamdemo">Complete contamination auto demo</button>
+      <button class="scn primary" type="button" data-scn="judge">Judge presentation (both demos in sequence)</button>
+    </div>
+  </section>
+
+  <section class="panel" aria-labelledby="schTitle">
+    <div class="panel-head">
+      <h2 id="schTitle">Process schematic</h2>
+      <div class="head-meta"><span>Current phase<b id="phaseName">Idle</b></span></div>
+    </div>
+    <ol class="steps" id="steps"></ol>
+    <div class="result" id="resultBar" hidden>
+      <span class="r-title" id="resultTitle"></span>
+      <span class="r-sub" id="resultSub"></span>
+      <span class="chips" id="resultChips"></span>
+      <button class="btn" id="resultClose" type="button">Dismiss</button>
+    </div>
+    <div class="svg-wrap">
+<svg id="schematic" viewBox="0 0 1280 600" role="img" aria-label="Process schematic from smart bin through docking station, flatbed, diverter, macerator, sump and pipeline to the digestion plant">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto"><path class="arrowhead" d="M0,0 L10,5 L0,10 z"></path></marker>
+  </defs>
+
+  <!-- connectors -->
+  <path class="conn" id="c_bd" d="M230,262 H300"></path>
+  <path class="conn" id="c_df" d="M520,262 H570"></path>
+  <path class="conn" id="c_fy" d="M890,262 H934"></path>
+  <path class="conn" id="c_yr" d="M1002,262 H1048"></path>
+  <path class="conn" id="c_ym" d="M968,296 V380"></path>
+  <path class="conn" id="c_ms" d="M868,475 H798"></path>
+  <path class="conn" id="c_sp" d="M608,475 H564"></path>
+  <path class="conn" id="c_pd" d="M274,475 H230"></path>
+  <text class="cl" x="265" y="250">BLE / NFC</text>
+  <text class="cl" x="1025" y="250">Reject</text>
+  <text class="cl start" x="982" y="344">Organic</text>
+
+  <!-- smart bin -->
+  <rect class="eq" id="binBox" x="20" y="50" width="210" height="240"></rect>
+  <rect class="eq-head" x="21" y="51" width="208" height="33"></rect>
+  <text class="tt" x="34" y="73">Smart bin</text>
+  <text class="rl" x="34" y="112">Metal</text><text class="rv" id="svMetal" x="216" y="112">—</text>
+  <text class="rl" x="34" y="138">Optical</text><text class="rv" id="svOptical" x="216" y="138">—</text>
+  <text class="rl" x="34" y="164">Moisture</text><text class="rv" id="svMoist" x="216" y="164">—</text>
+  <text class="rl" x="34" y="190">Weight</text><text class="rv" id="svWeight" x="216" y="190">—</text>
+  <text class="rl" x="34" y="216">Hatch</text><text class="rv" id="svHatch" x="216" y="216">LOCKED</text>
+  <rect class="hatch locked" id="binHatch" x="21" y="283" width="208" height="6"></rect>
+
+  <!-- docking station -->
+  <rect class="eq" id="dockBox" x="300" y="50" width="220" height="240"></rect>
+  <rect class="eq-head" x="301" y="51" width="218" height="33"></rect>
+  <text class="tt" x="314" y="73">Docking station</text>
+  <text class="rl" x="314" y="112">Container</text><text class="rv" id="svDockCtr" x="506" y="112">—</text>
+  <text class="rl" x="314" y="138">BLE 5.0</text><text class="rv" id="svDockBle" x="506" y="138">IDLE</text>
+  <text class="rl" x="314" y="164">NFC</text><text class="rv" id="svDockNfc" x="506" y="164">IDLE</text>
+  <text class="rl" x="314" y="190">Authentication</text><text class="rv" id="svDockAuth" x="506" y="190">PENDING</text>
+
+  <!-- flatbed -->
+  <rect class="eq" id="flatBox" x="570" y="50" width="320" height="240"></rect>
+  <rect class="eq-head" x="571" y="51" width="318" height="33"></rect>
+  <text class="tt" x="584" y="73">Flatbed scrutiny layer</text>
+  <rect class="sub-box" id="sensorBar" x="586" y="98" width="288" height="34"></rect>
+  <text class="rl" x="730" y="120" style="text-anchor:middle">Secondary sensor array</text>
+  <rect id="scanBeam" x="590" y="102" width="12" height="26"></rect>
+  <text class="rl" x="586" y="164">Layer</text><text class="rv" id="svFlatLayer" x="874" y="164">—</text>
+  <text class="rl" x="586" y="190">Scan</text><text class="rv" id="svFlatScan" x="874" y="190">IDLE</text>
+  <text class="rl" x="586" y="216">Purity</text><text class="rv" id="svFlatPurity" x="874" y="216">—</text>
+  <rect class="sub-box" x="586" y="246" width="288" height="32"></rect>
+
+  <!-- y-split -->
+  <text class="tt" x="968" y="196" style="text-anchor:middle">Y-split</text>
+  <text class="rv mid" id="svYStatus" x="968" y="218">NEUTRAL</text>
+  <g transform="translate(968,262)">
+    <circle class="eq" id="yBox" r="34"></circle>
+    <g id="yGate"><path d="M0,0 H24"></path></g>
+    <circle id="yHub" r="6"></circle>
+  </g>
+
+  <!-- rejection bin -->
+  <rect class="eq" id="rejBox" x="1048" y="190" width="220" height="160"></rect>
+  <rect class="eq-head" x="1049" y="191" width="218" height="33"></rect>
+  <text class="tt" x="1062" y="213">Rejection bin</text>
+  <text class="rl" x="1062" y="252">Contents</text><text class="rv" id="svRejContents" x="1254" y="252">EMPTY</text>
+  <text class="rl" x="1062" y="278">Rejected batches</text><text class="rv" id="svRejCount" x="1254" y="278">0</text>
+
+  <!-- macerator -->
+  <rect class="eq" id="macBox" x="868" y="380" width="200" height="190"></rect>
+  <rect class="eq-head" x="869" y="381" width="198" height="33"></rect>
+  <text class="tt" x="882" y="403">Macerator</text>
+  <g class="blades" id="blades" transform="translate(968,456)">
+    <circle r="26"></circle>
+    <path d="M-26,0 H26 M0,-26 V26"></path>
+  </g>
+  <text class="rl" x="882" y="524">Motor</text><text class="rv" id="svMacMotor" x="1054" y="524">OFF</text>
+  <text class="rl" x="882" y="550">Direction</text><text class="rv" id="svMacDir" x="1054" y="550">—</text>
+
+  <!-- sump -->
+  <rect class="eq" id="sumpBox" x="608" y="380" width="190" height="190"></rect>
+  <rect class="eq-head" x="609" y="381" width="188" height="33"></rect>
+  <text class="tt" x="622" y="403">Slurry sump</text>
+  <rect class="sub-box" x="632" y="424" width="142" height="96"></rect>
+  <rect id="sumpFill" x="633" y="425" width="140" height="94"></rect>
+  <text class="rl" x="622" y="550">Level</text><text class="rv" id="svSumpLevel" x="784" y="550">0%</text>
+
+  <!-- pipeline -->
+  <rect class="eq" id="pipeBox" x="274" y="380" width="290" height="190"></rect>
+  <rect class="eq-head" x="275" y="381" width="288" height="33"></rect>
+  <text class="tt" x="288" y="403">Adaptive slurry pipeline</text>
+  <rect class="sub-box" x="294" y="428" width="250" height="34"></rect>
+  <rect id="pipeFill" x="296" y="430" width="246" height="30"></rect>
+  <text class="rl" x="288" y="496">Mode</text><text class="rv" id="svPipeMode" x="550" y="496">GRAVITY</text>
+  <text class="rl" x="288" y="522">State</text><text class="rv" id="svPipeState" x="550" y="522">IDLE</text>
+  <text class="rl" x="288" y="548">Outlet</text><text class="rv" id="svPipeOutlet" x="550" y="548">CLOSED</text>
+
+  <!-- digestion plant -->
+  <rect class="eq" id="digBox" x="20" y="380" width="210" height="190"></rect>
+  <rect class="eq-head" x="21" y="381" width="208" height="33"></rect>
+  <text class="tt" x="34" y="403">Digestion plant</text>
+  <text class="rl" x="34" y="446">Feed</text><text class="rv" id="svDigFeed" x="216" y="446">—</text>
+  <text class="rl" x="34" y="472">Process</text><text class="rv" id="svDigProc" x="216" y="472">STANDBY</text>
+  <text class="rl" x="34" y="498">Biogas</text><text class="rv" id="svDigGas" x="216" y="498">—</text>
+  <text class="rl" x="34" y="524">Digestate</text><text class="rv" id="svDigDig" x="216" y="524">—</text>
+
+  <!-- key -->
+  <rect class="eq" x="1100" y="380" width="168" height="160"></rect>
+  <rect class="eq-head" x="1101" y="381" width="166" height="33"></rect>
+  <text class="tt" x="1114" y="403">Status key</text>
+  <rect class="swatch" x="1114" y="428" width="14" height="14" style="fill:var(--cyan)"></rect><text class="rl" x="1138" y="440">Active</text>
+  <rect class="swatch" x="1114" y="454" width="14" height="14" style="fill:var(--green)"></rect><text class="rl" x="1138" y="466">Accepted</text>
+  <rect class="swatch" x="1114" y="480" width="14" height="14" style="fill:var(--red)"></rect><text class="rl" x="1138" y="492">Reject / fault</text>
+  <rect class="swatch" x="1114" y="506" width="14" height="14" style="fill:none"></rect><text class="rl" x="1138" y="518">Idle</text>
+
+  <g id="tokenLayer"></g>
+</svg>
+    </div>
+  </section>
+
+  <section class="panel" aria-labelledby="dockTitle">
+    <div class="panel-head">
+      <h2 id="dockTitle">Docking station</h2>
+      <div class="head-meta">
+        <span>Station<b id="dkStationName">DOCK-01</b></span>
+        <span>State<b id="dkState">STANDBY</b></span>
+      </div>
+    </div>
+    <div class="dock-grid">
+      <div class="dock-col">
+        <h3>Device authentication</h3>
+        <table class="kv"><tbody>
+          <tr><th>Edge controller</th><td>Raspberry Pi 4</td></tr>
+          <tr><th>NFC reader</th><td>PN532</td></tr>
+          <tr><th>Container ID</th><td id="dkContainer">—</td></tr>
+          <tr><th>Tag UID</th><td id="dkTag">—</td></tr>
+          <tr><th>BLE 5.0 link</th><td id="dkBle">IDLE</td></tr>
+          <tr><th>NFC read</th><td id="dkNfc">IDLE</td></tr>
+          <tr><th>Authentication</th><td id="dkAuth">PENDING</td></tr>
+        </tbody></table>
+      </div>
+      <div class="dock-col">
+        <h3>Encryption status</h3>
+        <table class="kv"><tbody>
+          <tr><th>Payload cipher</th><td>AES-128</td></tr>
+          <tr><th>Cloud transport</th><td>MQTT / TLS</td></tr>
+          <tr><th>Key exchange</th><td id="dkKeyEx">NOT STARTED</td></tr>
+          <tr><th>Payload encryption</th><td id="dkPayload">OFF</td></tr>
+          <tr><th>TLS session</th><td id="dkTls">STANDBY</td></tr>
+          <tr><th>Last encrypted publish</th><td id="dkPublish">—</td></tr>
+        </tbody></table>
+      </div>
+      <div class="dock-col">
+        <h3>User session</h3>
+        <table class="kv"><tbody>
+          <tr><th>User ID</th><td id="dkUser">—</td></tr>
+          <tr><th>Session ID</th><td id="dkSession">—</td></tr>
+          <tr><th>Session state</th><td id="dkSessState">NONE</td></tr>
+          <tr><th>Started</th><td id="dkStart">—</td></tr>
+          <tr><th>Duration</th><td id="dkDuration">—</td></tr>
+          <tr><th>Batch mass</th><td id="dkBatch">—</td></tr>
+          <tr><th>Verified mass</th><td id="dkVerified">—</td></tr>
+          <tr><th>Session result</th><td id="dkResult">—</td></tr>
+          <tr><th>Last cloud sync</th><td id="dkSync">—</td></tr>
+        </tbody></table>
+      </div>
+    </div>
+  </section>
+
+  <div class="cards">
+    <section class="card">
+      <h2>Sensor data</h2>
+      <div class="body"><table class="kv"><tbody>
+        <tr><th>Weight</th><td id="dashWeight">—</td></tr>
+        <tr><th>Moisture</th><td id="dashMoisture">—</td></tr>
+        <tr><th>Metal detection</th><td id="dashMetal">—</td></tr>
+        <tr><th>Optical class</th><td id="dashOptical">—</td></tr>
+        <tr><th>Contamination</th><td id="dashContam">—</td></tr>
+      </tbody></table></div>
+    </section>
+
+    <section class="card">
+      <h2>Valves and actuators</h2>
+      <div class="body">
+        <table class="kv"><tbody>
+          <tr><th>Bottom hatch</th><td id="dashHatch">LOCKED</td></tr>
+          <tr><th>Y-split diverter</th><td id="dashDiverter">NEUTRAL</td></tr>
+          <tr><th>Macerator</th><td id="dashMacerator">OFF</td></tr>
+          <tr><th>Slurry outlet</th><td id="dashOutlet">CLOSED</td></tr>
+        </tbody></table>
+        <div class="field-label">Pipeline transport mode</div>
+        <div class="seg" id="modeSelect">
+          <button type="button" class="sel" data-mode="GRAVITY">GRAVITY</button>
+          <button type="button" data-mode="HYDRAULIC">HYDRAULIC</button>
+          <button type="button" data-mode="PNEUMATIC">PNEUMATIC</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Material</h2>
+      <div class="body">
+        <table class="kv"><tbody>
+          <tr><th>Organic accepted</th><td id="dashOrganic">0</td></tr>
+          <tr><th>Inorganic rejected</th><td id="dashInorganic">0</td></tr>
+          <tr><th>Slurry produced</th><td id="dashSlurryProduced">0.00 kg</td></tr>
+          <tr><th>Slurry transferred</th><td id="dashSlurryTransferred">0.00 kg</td></tr>
+          <tr><th>Sump level</th><td id="dashSumpLevel">0%</td></tr>
+        </tbody></table>
+        <div class="bar"><i id="sumpBar"></i></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Digestion plant</h2>
+      <div class="body"><table class="kv"><tbody>
+        <tr><th>Slurry received</th><td id="dashPlantReceived">NO</td></tr>
+        <tr><th>Digestion active</th><td id="dashDigestion">NO</td></tr>
+        <tr><th>Biogas output</th><td id="dashBiogas">—</td></tr>
+        <tr><th>Digestate output</th><td id="dashDigestate">—</td></tr>
+      </tbody></table></div>
+    </section>
+  </div>
+
+  <div class="logs">
+    <section class="panel" aria-labelledby="evTitle">
+      <div class="panel-head"><h2 id="evTitle">Real-time event log</h2></div>
+      <div class="tscroll">
+        <table class="grid">
+          <thead><tr><th>Time</th><th>Level</th><th>Source</th><th>Event</th></tr></thead>
+          <tbody id="eventRows"></tbody>
+        </table>
+      </div>
+    </section>
+    <section class="panel" aria-labelledby="cvTitle">
+      <div class="panel-head"><h2 id="cvTitle">Cloud server log</h2></div>
+      <div class="tscroll">
+        <table class="grid">
+          <thead><tr><th>Time</th><th>Type</th><th>Message</th></tr></thead>
+          <tbody id="serverRows"></tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <section class="panel" aria-labelledby="usTitle">
+    <div class="panel-head"><h2 id="usTitle">User accounts</h2></div>
+    <div class="tscroll wide">
+      <table class="grid">
+        <thead><tr>
+          <th>User ID</th><th>Container</th><th>Linked dock</th><th>BLE / NFC</th><th>Last cloud sync</th>
+          <th class="num">Verified mass</th><th class="num">Deliveries</th><th class="num">Contamination events</th><th class="num">Credit points (sim.)</th><th class="num">Penalty flags</th>
+        </tr></thead>
+        <tbody id="userRows"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="panel" aria-labelledby="nwTitle">
+    <div class="panel-head">
+      <h2 id="nwTitle">Neighborhood network and cloud sync</h2>
+      <div class="head-meta">
+        <span>Docks online<b class="ok">3/3</b></span>
+        <span>Last sync<b id="netSync">—</b></span>
+        <span>Packets synced<b id="netPackets">0</b></span>
+      </div>
+    </div>
+    <div class="chain">
+      <div class="node"><b>Docking stations</b><span>BLE Mesh, LoRaWAN or 4G uplink</span></div>
+      <span class="link">&gt;</span>
+      <div class="node"><b>MQTT cloud broker</b><span>MQTT over TLS, AES-128 payloads</span></div>
+      <span class="link">&gt;</span>
+      <div class="node"><b>App server</b><span>Node.js / Flask API, session logic</span></div>
+      <span class="link">&gt;</span>
+      <div class="node"><b>Database</b><span>PostgreSQL / MongoDB, user IDs, tag keys, logs</span></div>
+    </div>
+    <div class="tscroll wide" style="padding:8px 0 0;">
+      <table class="grid">
+        <thead><tr><th>Dock</th><th>Edge hardware</th><th>Uplink</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">DOCK-01 (this station)</td><td>Raspberry Pi 4, PN532 NFC reader</td><td>SIM7600G-H 4G / LTE</td><td class="lvl ok">ONLINE</td></tr>
+          <tr><td class="mono">DOCK-02</td><td>Raspberry Pi 4</td><td>LoRaWAN gateway</td><td class="lvl ok">ONLINE</td></tr>
+          <tr><td class="mono">DOCK-03</td><td>ESP32-S3</td><td>SIM7600G-H 4G / LTE</td><td class="lvl ok">ONLINE</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <p class="foot">Simulated engineering digital twin for demonstration. Sensor readings, timings, tag UIDs, session IDs, credits and penalties are deterministic simulation values, not physically validated measurements.</p>
+</div>
+
+<div class="control-bar">
+  <div class="grp">
+    <button class="btn" id="pauseBtn" type="button">Pause</button>
+    <button class="btn stop" id="stopBtn" type="button" disabled>Stop demo</button>
+  </div>
+  <div class="grp" role="group" aria-label="Simulation speed">
+    <span class="lab">Speed</span>
+    <button class="spd" type="button" data-speed="0.5">0.5x</button>
+    <button class="spd active" type="button" data-speed="1">1x</button>
+    <button class="spd" type="button" data-speed="2">2x</button>
+  </div>
+  <span class="spacer"></span>
+  <button class="btn" id="resetBtn" type="button">Reset system</button>
+</div>
+
+<div id="archModal" role="dialog" aria-modal="true" aria-labelledby="archTitle">
+  <div class="arch-card">
+    <h2 id="archTitle">System architecture and electronics</h2>
+    <div class="arch-flow">
+      <div class="arch-step">Sensors and load cells</div>
+      <div class="arch-step">MCU (ESP32-WROOM-32 / nRF52840)</div>
+      <div class="arch-step">BLE 5.0 / NFC handshake</div>
+      <div class="arch-step">Docking station controller</div>
+      <div class="arch-step">4G / Wi-Fi gateway</div>
+      <div class="arch-step">MQTT cloud server and user database</div>
+    </div>
+    <div class="arch-sections">
+      <div class="arch-section">
+        <h3>Smart household bin</h3>
+        <ul class="arch-parts">
+          <li><b>MCU / transceiver</b>ESP32-WROOM-32 or Nordic nRF52840 (BLE 5.0 and local control)</li>
+          <li><b>NFC module</b>PN532 / ST25R3916 reader-writer (user auth and bin-dock pairing)</li>
+          <li><b>Fill / volume sensor</b>VL53L1X ToF or HC-SR04 ultrasonic</li>
+          <li><b>Weight sensing</b>HX711 24-bit ADC with 4-wire strain gauge load cell (0–10 kg)</li>
+          <li><b>Contamination / gas</b>MQ-135 / MQ-4, or optical NIR / reflectance sensor</li>
+          <li><b>Lid and motion control</b>SG90 / MG996R servo or stepper with IR proximity</li>
+          <li><b>Power</b>3.7 V LiPo with TP4056 USB-C charger, or solar trickle-charge</li>
+        </ul>
+      </div>
+      <div class="arch-section">
+        <h3>Docking station</h3>
+        <ul class="arch-parts">
+          <li><b>Edge compute</b>Raspberry Pi 4 / Jetson Nano, or ESP32-S3 dual-core</li>
+          <li><b>Wireless</b>Integrated BLE 5.0 antenna and PN532 NFC reader (automated handshake)</li>
+          <li><b>Cloud link</b>SIM7600G-H 4G/LTE, or Wi-Fi (ESP8266/ESP32) via MQTT/HTTPS</li>
+          <li><b>Docking actuation</b>NEMA 17 steppers with A4988 / TMC2209 drivers (hatch, tip, dump)</li>
+          <li><b>Verification</b>Heavy-duty load cells (0–50 kg) with HX711 ADC for post-dump mass check</li>
+          <li><b>Status and safety</b>Limit switches, WS2812B RGB status ring, 0.96 in OLED (I2C)</li>
+        </ul>
+      </div>
+      <div class="arch-section">
+        <h3>Neighborhood and cloud network</h3>
+        <ul class="arch-parts">
+          <li><b>Local gateways</b>Docking stations act as BLE Mesh / LoRaWAN gateways to the broker</li>
+          <li><b>Ingestion protocol</b>MQTT over TLS, or HTTPS REST API for secure payload transfer</li>
+          <li><b>Server and database</b>Node.js / Python Flask backend, PostgreSQL / MongoDB (multi-user sessions)</li>
+          <li><b>Security</b>AES-128 / RSA-encrypted payloads linking user IDs, NFC/RFID tag keys, timestamped weight logs and telemetry</li>
+        </ul>
+      </div>
+    </div>
+    <div style="text-align:right;margin-top:20px;"><button class="btn" id="archClose" type="button">Close</button></div>
+  </div>
+</div>
+
+<script>
+(function(){
+"use strict";
+
+/* ============================================================
+   CONSTANTS
+============================================================ */
+const $ = id => document.getElementById(id);
+const SVG_NS = "http://www.w3.org/2000/svg";
+const PIPE_MS = {GRAVITY:2200, HYDRAULIC:1400, PNEUMATIC:900};
+const clock = () => new Date().toTimeString().slice(0,8);
+
+const WASTE = {
+  organic_food:{label:'Food waste',    weight:1.80, moisture:76, metal:'NO', optical:'ORGANIC', contamination:'CLEAR', hidden:false},
+  credit_batch:{label:'Organic batch', weight:2.40, moisture:78, metal:'NO', optical:'ORGANIC', contamination:'CLEAR', hidden:false},
+  mixed_hidden:{label:'Mixed batch',   weight:2.10, moisture:70, metal:'NO', optical:'ORGANIC', contamination:'CLEAR', hidden:true}
+};
+
+/* token positions in schematic units */
+const POS = {
+  bin:{x:125,y:262}, dock:{x:410,y:262}, flatStart:{x:640,y:262}, flatEnd:{x:820,y:262},
+  ySplit:{x:968,y:262}, reject:{x:1158,y:322}, mac:{x:968,y:456}
+};
+
+const PHASE_LABELS = {
+  IDLE:'Idle', WASTE_INSERTED:'Waste inserted', HOUSEHOLD_SCANNING:'Household scanning',
+  HOUSEHOLD_ACCEPTED:'Household accepted', DOCKING:'Docking and authentication', DISCHARGING:'Discharging',
+  FLATBED_ACTIVE:'Flatbed active', SECONDARY_SCANNING:'Secondary scanning', SECONDARY_ACCEPTED:'Secondary accepted',
+  SECONDARY_REJECTED:'Secondary rejected', ROUTING_ORGANIC:'Routing organic', ROUTING_REJECTION:'Routing rejection',
+  MACERATING:'Macerating', MACERATOR_STALLED:'Macerator stalled', AUTO_REVERSING:'Auto-reversing',
+  SLURRY_READY:'Slurry ready', PIPELINE_TRANSFER:'Pipeline transfer', DIGESTER_RECEIVED:'Digester received',
+  CREDIT_PROCESSING:'Credit processing', PENALTY_PROCESSING:'Penalty processing', COMPLETE:'Complete'
+};
+const PHASE_GROUPS = [
+  {label:'Detect',            phases:['WASTE_INSERTED','HOUSEHOLD_SCANNING']},
+  {label:'Verify',            phases:['HOUSEHOLD_ACCEPTED']},
+  {label:'Authenticate',      phases:['DOCKING']},
+  {label:'Scrutinize',        phases:['DISCHARGING','FLATBED_ACTIVE','SECONDARY_SCANNING','SECONDARY_ACCEPTED','SECONDARY_REJECTED']},
+  {label:'Separate',          phases:['ROUTING_ORGANIC','ROUTING_REJECTION']},
+  {label:'Macerate',          phases:['MACERATING','MACERATOR_STALLED','AUTO_REVERSING','SLURRY_READY']},
+  {label:'Transport',         phases:['PIPELINE_TRANSFER']},
+  {label:'Process',           phases:['DIGESTER_RECEIVED']},
+  {label:'Reward / penalize', phases:['CREDIT_PROCESSING','PENALTY_PROCESSING']}
+];
+
+/* ============================================================
+   STATE
+============================================================ */
+function freshUsers(){
+  return {
+    'USER-001':{id:'USER-001', name:'User 1', containerId:'CTR-4471', tagUid:'04:7A:3F:C2:11:80:5E', dockId:'DOCK-01', verifiedMass:0, contamEvents:0, successes:0, credits:0, penalties:0, lastSync:'—', signal:'IDLE', history:[]},
+    'USER-002':{id:'USER-002', name:'User 2', containerId:'CTR-4472', tagUid:'04:9B:71:0D:E4:29:B3', dockId:'DOCK-01', verifiedMass:0, contamEvents:0, successes:0, credits:0, penalties:0, lastSync:'—', signal:'IDLE', history:[]},
+    'USER-003':{id:'USER-003', name:'User 3', containerId:'CTR-4473', tagUid:'04:A1:B2:C3:D4:E5:F6', dockId:'DOCK-01', verifiedMass:0, contamEvents:0, successes:0, credits:0, penalties:0, lastSync:'—', signal:'IDLE', history:[]},
+    'USER-004':{id:'USER-004', name:'User 4', containerId:'CTR-4474', tagUid:'04:B2:C3:D4:E5:F6:A1', dockId:'DOCK-01', verifiedMass:0, contamEvents:0, successes:0, credits:0, penalties:0, lastSync:'—', signal:'IDLE', history:[]},
+    'USER-005':{id:'USER-005', name:'User 5', containerId:'CTR-4475', tagUid:'04:C3:D4:E5:F6:A1:B2', dockId:'DOCK-01', verifiedMass:0, contamEvents:0, successes:0, credits:0, penalties:0, lastSync:'—', signal:'IDLE', history:[]},
+    'USER-006':{id:'USER-006', name:'User 6', containerId:'CTR-4476', tagUid:'04:D4:E5:F6:A1:B2:C3', dockId:'DOCK-01', verifiedMass:0, contamEvents:0, successes:0, credits:0, penalties:0, lastSync:'—', signal:'IDLE', history:[]}
+  };
+}
+const state = {
+  phase:'IDLE', hatch:'LOCKED', diverter:'NEUTRAL', macerator:'OFF', outlet:'CLOSED',
+  sumpLevel:0, transportMode:'GRAVITY', paused:false, speed:1, running:false, runGen:0,
+  organicAccepted:0, inorganicRejected:0, slurryProduced:0, slurryTransferred:0,
+  netPacketCount:0, sessionSeq:0, visited:new Set(), users:freshUsers()
+};
+
+/* ============================================================
+   SMALL HELPERS
+============================================================ */
+function setVal(id, text, kind){
+  const el = $(id);
+  if(!el) return;
+  el.textContent = text;
+  el.classList.remove('ok','warn','info');
+  if(kind) el.classList.add(kind);
+}
+const OK_SET   = new Set(['VERIFIED','READ OK','LINKED','COMPLETE','ACTIVE','ESTABLISHED','SECURE SESSION','OPEN','CREDITED']);
+const INFO_SET = new Set(['ADVERTISING','TAG DETECTED','IN PROGRESS','AUTHENTICATING']);
+const WARN_SET = new Set(['PENALTY FLAGGED','REJECTED','ABORTED','SESSION ABORTED','FAILED']);
+function kindOf(v){ return OK_SET.has(v) ? 'ok' : INFO_SET.has(v) ? 'info' : WARN_SET.has(v) ? 'warn' : ''; }
+function fmtDuration(ms){
+  const s = Math.max(0, Math.round(ms/1000));
+  return String(Math.floor(s/60)).padStart(2,'0') + ':' + String(s%60).padStart(2,'0');
+}
+
+/* ============================================================
+   TIMING, PAUSE AND SPEED
+============================================================ */
+let pauseResolvers = [];
+function delay(ms){ return new Promise(res => setTimeout(res, ms / state.speed)); }
+function waitIfPaused(){ return state.paused ? new Promise(res => pauseResolvers.push(res)) : Promise.resolve(); }
+async function step(gen, ms){
+  await waitIfPaused();
+  if(gen !== state.runGen) return false;
+  await delay(ms);
+  await waitIfPaused();
+  return gen === state.runGen;
+}
+function releasePauses(){ pauseResolvers.forEach(r => r()); pauseResolvers = []; }
+function syncPauseUI(){
+  $('pauseBtn').textContent = state.paused ? 'Resume' : 'Pause';
+  document.body.classList.toggle('paused', state.paused);
+}
+
+/* ============================================================
+   LOG TABLES
+============================================================ */
+function addRow(tbody, cells, max){
+  const tr = document.createElement('tr');
+  cells.forEach(c => {
+    const td = document.createElement('td');
+    td.textContent = c.text;
+    if(c.cls) td.className = c.cls;
+    tr.appendChild(td);
+  });
+  tbody.insertBefore(tr, tbody.firstChild);
+  while(tbody.rows.length > max) tbody.deleteRow(tbody.rows.length - 1);
+}
+function log(src, msg, level){
+  level = level || 'info';
+  addRow($('eventRows'), [
+    {text:clock(), cls:'mono'},
+    {text:level==='ok'?'OK':level==='warn'?'WARN':'INFO', cls:'lvl '+level},
+    {text:src, cls:'mono'},
+    {text:msg}
+  ], 120);
+}
+function serverLog(msg, sec){
+  addRow($('serverRows'), [
+    {text:clock(), cls:'mono'},
+    {text:sec?'SEC':'SYS', cls:'lvl '+(sec?'info':'')},
+    {text:msg}
+  ], 80);
+}
+
+/* ============================================================
+   AMBIENT NETWORK SYNC (docks publishing telemetry to the broker)
+============================================================ */
+const NET_DOCKS = ['DOCK-01','DOCK-02','DOCK-03'];
+const NET_EVENTS = [
+  [d => `MQTT PUBLISH ${d}/telemetry: heartbeat OK`, false],
+  [d => `MQTT PUBLISH ${d}/sensors: fill level and weight snapshot`, false],
+  [d => `${d} payload encrypted (AES-128) and relayed to broker`, true],
+  [d => `${d} to broker: TLS session renewed`, true],
+  [d => `App server: session token refreshed for ${d}`, false],
+  [d => `Database write OK: telemetry row inserted for ${d}`, false]
+];
+let netTick = 0, ambientTimer = null;
+function ambientTick(){
+  const dockId = NET_DOCKS[Math.floor(netTick/2) % NET_DOCKS.length];
+  const ev = NET_EVENTS[netTick % NET_EVENTS.length];
+  netTick++;
+  serverLog(ev[0](dockId), ev[1]);
+  state.netPacketCount++;
+  $('netPackets').textContent = state.netPacketCount;
+  $('netSync').textContent = clock();
+}
+function startAmbient(){
+  if(ambientTimer) clearInterval(ambientTimer);
+  ambientTimer = setInterval(ambientTick, 3600);
+  ambientTick();
+}
+
+/* ============================================================
+   DOCKING STATION MODEL
+============================================================ */
+function dockInit(){
+  return {
+    state:'STANDBY', container:'—', tag:'—', ble:'IDLE', nfc:'IDLE', auth:'PENDING',
+    keyEx:'NOT STARTED', payload:'OFF', tls:'STANDBY', publish:'—',
+    user:'—', session:'—', sessState:'NONE', start:'—', startMs:0, duration:'—',
+    batch:'—', verified:'—', result:'—', sync:'—'
+  };
+}
+let dock = dockInit();
+function renderDock(){
+  const dId = dock.dockId || 'DOCK-01';
+  setVal('dkStationName', dId);
+  setVal('dkState', dock.state, kindOf(dock.state));
+  setVal('dkContainer', dock.container);
+  setVal('dkTag', dock.tag);
+  setVal('dkBle', dock.ble, kindOf(dock.ble));
+  setVal('dkNfc', dock.nfc, kindOf(dock.nfc));
+  setVal('dkAuth', dock.auth, kindOf(dock.auth));
+  setVal('dkKeyEx', dock.keyEx, kindOf(dock.keyEx));
+  setVal('dkPayload', dock.payload, kindOf(dock.payload));
+  setVal('dkTls', dock.tls, kindOf(dock.tls));
+  setVal('dkPublish', dock.publish);
+  setVal('dkUser', dock.user);
+  setVal('dkSession', dock.session);
+  setVal('dkSessState', dock.sessState, kindOf(dock.sessState));
+  setVal('dkStart', dock.start);
+  setVal('dkDuration', dock.duration);
+  setVal('dkBatch', dock.batch);
+  setVal('dkVerified', dock.verified);
+  setVal('dkResult', dock.result, kindOf(dock.result));
+  setVal('dkSync', dock.sync);
+  /* schematic mirror */
+  setVal('svDockCtr', dock.container);
+  setVal('svDockBle', dock.ble, kindOf(dock.ble));
+  setVal('svDockNfc', dock.nfc, kindOf(dock.nfc));
+  setVal('svDockAuth', dock.auth, kindOf(dock.auth));
+}
+function resetDock(){ dock = dockInit(); renderDock(); }
+function closeSession(result){
+  dock.sessState = 'CLOSED';
+  dock.state = 'SESSION CLOSED';
+  dock.duration = fmtDuration(Date.now() - dock.startMs);
+  dock.result = result;
+  dock.sync = clock();
+  dock.publish = clock();
+  renderDock();
+  const dId = dock.dockId || 'DOCK-01';
+  log('DOCK', `Session ${dock.session} closed: ${result.toLowerCase()}`, result==='CREDITED'?'ok':'warn');
+  serverLog(`MQTT PUBLISH ${dId}/session: ${dock.session} closed (${result})`, true);
+  const u = state.users[dock.user];
+  if(u){ u.signal = 'IDLE'; u.lastSync = clock(); renderUsers(); }
+}
+setInterval(() => {
+  if(dock.sessState === 'OPEN') setVal('dkDuration', fmtDuration(Date.now() - dock.startMs));
+}, 1000);
+
+async function handshake(gen, u, p){
+  const go = ms => step(gen, ms);
+  const dId = dock.dockId || 'DOCK-01';
+  dock.state = 'AUTHENTICATING';
+  dock.container = u.containerId;
+  dock.user = u.id;
+  dock.batch = p.weight.toFixed(2) + ' kg';
+  dock.ble = 'ADVERTISING';
+  renderDock();
+  log('DOCK', 'Bin MCU broadcasting BLE 5.0 advertisement packet');
+  serverLog(`${dId} BLE scan: advertisement from ${u.containerId} detected`);
+  if(!await go(550)) return false;
+
+  dock.ble = 'LINKED';
+  dock.nfc = 'TAG DETECTED';
+  dock.tag = u.tagUid;
+  renderDock();
+  log('DOCK', 'PN532 NFC reader detected bin tag and read its UID');
+  if(!await go(500)) return false;
+
+  dock.nfc = 'READ OK';
+  dock.keyEx = 'IN PROGRESS';
+  renderDock();
+  log('DOCK', 'AES-128 session key exchange in progress');
+  serverLog(`MQTT PUBLISH ${dId}/auth: ${u.id} handshake payload (AES-128 encrypted)`, true);
+  if(!await go(600)) return false;
+
+  state.sessionSeq++;
+  dock.auth = 'VERIFIED';
+  dock.keyEx = 'COMPLETE';
+  dock.payload = 'ACTIVE';
+  dock.tls = 'ESTABLISHED';
+  dock.state = 'SECURE SESSION';
+  dock.session = 'SES-' + String(state.sessionSeq).padStart(4,'0');
+  dock.sessState = 'OPEN';
+  dock.start = clock();
+  dock.startMs = Date.now();
+  dock.duration = '00:00';
+  dock.result = 'IN PROGRESS';
+  dock.publish = clock();
+  dock.sync = clock();
+  u.signal = 'PAIRED';
+  u.lastSync = clock();
+  renderDock();
+  renderUsers();
+  log('DOCK', `${u.id} authenticated, secure session ${dock.session} opened`, 'ok');
+  serverLog(`Database write OK: session ${dock.session} logged for ${u.id} via ${dId}`);
+  return true;
+}
+
+/* ============================================================
+   USER ACCOUNTS
+============================================================ */
+function renderUsers(){
+  const tb = $('userRows');
+  tb.innerHTML = '';
+  Object.values(state.users).forEach(u => {
+    const tr = document.createElement('tr');
+    tr.innerHTML =
+      `<td class="mono">${u.id}</td>` +
+      `<td class="mono">${u.containerId}</td>` +
+      `<td class="mono">${u.dockId}</td>` +
+      `<td class="lvl ${u.signal==='PAIRED'?'ok':''}">${u.signal}</td>` +
+      `<td class="mono">${u.lastSync}</td>` +
+      `<td class="num">${u.verifiedMass.toFixed(2)} kg</td>` +
+      `<td class="num">${u.successes}</td>` +
+      `<td class="num ${u.contamEvents>0?'warn':''}">${u.contamEvents}</td>` +
+      `<td class="num ok">+${u.credits}</td>` +
+      `<td class="num ${u.penalties>0?'warn':''}">${u.penalties}</td>`;
+    tb.appendChild(tr);
+  });
+}
+function broadcastState(lastTx){
+  const payload = {
+    eventType: "SIMULATION_UPDATE",
+    users: Object.values(state.users).map(u => ({
+      id: u.id,
+      name: u.name,
+      credits: u.credits,
+      fines: u.penalties,
+      currentWeightKg: u.verifiedMass,
+      history: u.history
+    })),
+    lastTransaction: lastTx || null
+  };
+  window.postMessage(payload, "*");
+  localStorage.setItem("DIGITAL_TWIN_STATE", JSON.stringify(payload));
+  try {
+    const bc = new BroadcastChannel("DIGITAL_TWIN_STATE");
+    bc.postMessage(payload);
+    bc.close();
+  } catch(e) {}
+  
+  // Sync with real backend
+  try {
+    fetch('/api/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    }).catch(err => console.error("Sync error:", err));
+  } catch(e) {}
+}
+
+function creditUser(userId, mass, points, dockId, scenario){
+  const u = state.users[userId];
+  u.verifiedMass += mass; u.successes += 1; u.credits += points;
+  const tx = { userId: u.id, stationId: dockId || u.dockId, scenario: scenario || "organic", weight: mass, credits: points, fines: 0, timestamp: new Date().toISOString() };
+  u.history.push(tx);
+  renderUsers();
+  dock.verified = mass.toFixed(2) + ' kg';
+  renderDock();
+  log('ACCOUNT', `${userId} credited +${points} simulation points for ${mass.toFixed(2)} kg`, 'ok');
+  serverLog(`Database write OK: credit ledger updated for ${userId}`);
+  broadcastState(tx);
+}
+function penaltyUser(userId, reason, mass, dockId, scenario){
+  const u = state.users[userId];
+  u.contamEvents += 1; u.penalties += 1;
+  const tx = { userId: u.id, stationId: dockId || u.dockId, scenario: scenario || "contamination", weight: mass || 0, credits: 0, fines: 1, timestamp: new Date().toISOString() };
+  u.history.push(tx);
+  renderUsers();
+  dock.verified = '0.00 kg';
+  renderDock();
+  log('ACCOUNT', `${userId} penalty flagged: ${reason}`, 'warn');
+  serverLog(`Database write OK: penalty flag written for ${userId}`);
+  broadcastState(tx);
+}
+
+/* ============================================================
+   PHASE STRIP AND HIGHLIGHTS
+============================================================ */
+(function buildSteps(){
+  const ol = $('steps');
+  PHASE_GROUPS.forEach((g, i) => {
+    const li = document.createElement('li');
+    li.className = 'step';
+    li.innerHTML = `<span class="n">${String(i+1).padStart(2,'0')}</span>${g.label}`;
+    ol.appendChild(li);
+  });
+})();
+
+const BOX = {bin:'binBox', dock:'dockBox', flat:'flatBox', split:'yBox', reject:'rejBox', mac:'macBox', sump:'sumpBox', pipe:'pipeBox', dig:'digBox'};
+const FLOW = ['c_bd','c_df','c_fy','c_ms','c_sp','c_pd'];
+function clearHighlights(){
+  Object.values(BOX).forEach(id => $(id).classList.remove('active','accept','reject'));
+  FLOW.forEach(id => $(id).classList.remove('active'));
+}
+function hl(key, cls){ $(BOX[key]).classList.add(cls); }
+function flow(){ Array.prototype.forEach.call(arguments, id => $(id).classList.add('active')); }
+function updateHighlights(phase){
+  clearHighlights();
+  switch(phase){
+    case 'WASTE_INSERTED': case 'HOUSEHOLD_SCANNING': hl('bin','active'); break;
+    case 'HOUSEHOLD_ACCEPTED': hl('bin','accept'); break;
+    case 'DOCKING': hl('dock','active'); flow('c_bd'); break;
+    case 'DISCHARGING': hl('bin','accept'); hl('dock','accept'); flow('c_df'); break;
+    case 'FLATBED_ACTIVE': case 'SECONDARY_SCANNING': hl('flat','active'); break;
+    case 'SECONDARY_ACCEPTED': hl('flat','accept'); break;
+    case 'SECONDARY_REJECTED': hl('flat','reject'); break;
+    case 'ROUTING_ORGANIC': hl('split','accept'); flow('c_fy'); break;
+    case 'ROUTING_REJECTION': hl('split','reject'); hl('reject','reject'); flow('c_fy'); break;
+    case 'MACERATING': hl('mac','accept'); break;
+    case 'MACERATOR_STALLED': case 'AUTO_REVERSING': hl('mac','reject'); break;
+    case 'SLURRY_READY': hl('sump','accept'); flow('c_ms'); break;
+    case 'PIPELINE_TRANSFER': hl('sump','active'); hl('pipe','active'); flow('c_sp','c_pd'); break;
+    case 'DIGESTER_RECEIVED': hl('pipe','accept'); hl('dig','accept'); flow('c_pd'); break;
+    default: break;
+  }
+}
+function setPhase(phase){
+  state.phase = phase;
+  $('phaseName').textContent = PHASE_LABELS[phase] || phase;
+  const idx = phase === 'COMPLETE' ? -1 : PHASE_GROUPS.findIndex(g => g.phases.includes(phase));
+  if(idx >= 0) state.visited.add(idx);
+  document.querySelectorAll('.step').forEach((el, i) => {
+    el.classList.toggle('on', i === idx);
+    el.classList.toggle('done', i !== idx && state.visited.has(i));
+  });
+  updateHighlights(phase);
+}
+
+/* ============================================================
+   SENSORS, ACTUATORS, MATERIAL
+============================================================ */
+function updateSensors(p){
+  setVal('dashWeight', p.weight.toFixed(2) + ' kg');
+  setVal('dashMoisture', p.moisture + '%');
+  setVal('dashMetal', p.metal, p.metal==='YES' ? 'warn' : 'ok');
+  setVal('dashOptical', p.optical, p.optical==='ORGANIC' ? 'ok' : 'warn');
+  setVal('dashContam', p.contamination, p.contamination==='CLEAR' ? 'ok' : 'warn');
+  setVal('svMetal', p.metal, p.metal==='YES' ? 'warn' : 'ok');
+  setVal('svOptical', p.optical, p.optical==='ORGANIC' ? 'ok' : 'warn');
+  setVal('svMoist', p.moisture + '%');
+  setVal('svWeight', p.weight.toFixed(2) + ' kg');
+}
+function clearSensors(){
+  ['dashWeight','dashMoisture','dashMetal','dashOptical','dashContam','svMetal','svOptical','svMoist','svWeight']
+    .forEach(id => setVal(id, '—'));
+}
+function setHatch(status){
+  state.hatch = status;
+  const kind = status==='LOCKED' ? 'warn' : status==='OPEN' ? 'ok' : 'info';
+  setVal('dashHatch', status, kind);
+  setVal('svHatch', status, kind);
+  const bar = $('binHatch');
+  bar.setAttribute('class', 'hatch ' + status.toLowerCase());
+}
+function setDiverter(pos){
+  state.diverter = pos;
+  const kind = pos==='ORGANIC' ? 'ok' : pos==='REJECTION' ? 'warn' : '';
+  setVal('dashDiverter', pos, kind);
+  setVal('svYStatus', pos, kind);
+  const gate = $('yGate');
+  gate.classList.remove('organic','reject');
+  if(pos==='ORGANIC') gate.classList.add('organic');
+  if(pos==='REJECTION') gate.classList.add('reject');
+  $('c_ym').classList.toggle('accept', pos==='ORGANIC');
+  $('c_yr').classList.toggle('reject', pos==='REJECTION');
+}
+function setMacerator(status){
+  state.macerator = status;
+  const kind = status==='ON' ? 'ok' : status==='STALLED' ? 'warn' : status==='REVERSING' ? 'info' : '';
+  setVal('dashMacerator', status, kind);
+  setVal('svMacMotor', status, kind);
+  setVal('svMacDir', status==='ON' ? 'FWD' : status==='REVERSING' ? 'REV' : status==='STALLED' ? 'HOLD' : '—', kind);
+  $('blades').setAttribute('class', 'blades' + (kind ? ' b-' + kind : ''));
+}
+function setOutlet(status){
+  state.outlet = status;
+  setVal('dashOutlet', status, status==='OPEN' ? 'ok' : '');
+  setVal('svPipeOutlet', status, status==='OPEN' ? 'ok' : '');
+}
+function setSumpLevel(pct){
+  state.sumpLevel = Math.max(0, Math.min(100, pct));
+  const txt = Math.round(state.sumpLevel) + '%';
+  setVal('dashSumpLevel', txt);
+  setVal('svSumpLevel', txt);
+  $('sumpBar').style.width = state.sumpLevel + '%';
+  $('sumpFill').style.transform = `scaleY(${state.sumpLevel/100})`;
+}
+function setPipeState(text){
+  setVal('svPipeState', text, text==='TRANSFER' ? 'info' : text==='DONE' ? 'ok' : '');
+}
+function pipeFillStart(ms){
+  const f = $('pipeFill');
+  f.classList.remove('done');
+  f.style.transition = 'none';
+  f.style.transform = 'scaleX(0)';
+  void f.getBoundingClientRect();
+  f.style.transition = `transform ${Math.round(ms / state.speed)}ms linear`;
+  f.style.transform = 'scaleX(1)';
+}
+function pipeFillDone(){ $('pipeFill').classList.add('done'); }
+function pipeFillReset(){
+  const f = $('pipeFill');
+  f.classList.remove('done');
+  f.style.transition = 'none';
+  f.style.transform = 'scaleX(0)';
+}
+function setLayer(t, k){ setVal('svFlatLayer', t, k); }
+function setScan(t, k){ setVal('svFlatScan', t, k); }
+function setPurity(t, k){ setVal('svFlatPurity', t, k); }
+function setReject(t, k){ setVal('svRejContents', t, k); setVal('svRejCount', String(state.inorganicRejected)); }
+function setDig(feed, proc, gas, dig){
+  setVal('svDigFeed', feed, feed==='RECEIVED' ? 'ok' : '');
+  setVal('svDigProc', proc, proc==='ACTIVE' ? 'ok' : '');
+  setVal('svDigGas', gas, gas==='ACTIVE' ? 'ok' : '');
+  setVal('svDigDig', dig, dig==='ACTIVE' ? 'ok' : '');
+}
+function setPlant(received, active, gas, dig){
+  setVal('dashPlantReceived', received ? 'YES' : 'NO', received ? 'ok' : '');
+  setVal('dashDigestion', active ? 'YES' : 'NO', active ? 'ok' : '');
+  setVal('dashBiogas', gas ? 'ACTIVE (SIM)' : '—', gas ? 'ok' : '');
+  setVal('dashDigestate', dig ? 'ACTIVE (SIM)' : '—', dig ? 'ok' : '');
+}
+function bump(kind, amount){
+  if(kind==='organic'){ state.organicAccepted++; setVal('dashOrganic', String(state.organicAccepted)); }
+  if(kind==='inorganic'){ state.inorganicRejected++; setVal('dashInorganic', String(state.inorganicRejected)); }
+  if(kind==='produced'){ state.slurryProduced += amount; setVal('dashSlurryProduced', state.slurryProduced.toFixed(2) + ' kg'); }
+  if(kind==='transferred'){ state.slurryTransferred += amount; setVal('dashSlurryTransferred', state.slurryTransferred.toFixed(2) + ' kg'); }
+}
+
+/* ============================================================
+   TOKENS (waste batches moving through the schematic)
+============================================================ */
+function spawnToken(p){
+  const g = document.createElementNS(SVG_NS, 'g');
+  g.setAttribute('class', 'token');
+  g.style.transition = 'none';
+  g.style.transform = `translate(${POS.bin.x}px,${POS.bin.y}px)`;
+  const body = document.createElementNS(SVG_NS, 'circle');
+  body.setAttribute('class', 'body');
+  body.setAttribute('r', '12');
+  g.appendChild(body);
+  if(p.hidden){
+    const mark = document.createElementNS(SVG_NS, 'circle');
+    mark.setAttribute('class', 'mark');
+    mark.setAttribute('r', '5'); mark.setAttribute('cx', '8'); mark.setAttribute('cy', '-8');
+    g.appendChild(mark);
+  }
+  const label = document.createElementNS(SVG_NS, 'text');
+  label.setAttribute('x', '0'); label.setAttribute('y', '-22');
+  label.textContent = p.label;
+  g.appendChild(label);
+  $('tokenLayer').appendChild(g);
+  return g;
+}
+function moveToken(t, pos, ms){
+  if(!t) return;
+  void t.getBoundingClientRect();
+  t.style.transition = `transform ${Math.round(ms / state.speed)}ms cubic-bezier(.45,0,.2,1), opacity .5s`;
+  t.style.transform = `translate(${pos.x}px,${pos.y}px)`;
+}
+function spreadToken(t){ if(t) t.classList.add('spreading'); }
+function revealToken(t){ if(t) t.classList.add('revealed'); }
+function slurryToken(t){ if(t){ t.style.transition = 'opacity .5s'; t.classList.add('slurried'); } }
+function removeToken(t){ if(t && t.parentNode) t.parentNode.removeChild(t); }
+
+/* ============================================================
+   RESULT BAR
+============================================================ */
+function showResult(title, sub, chips, warn){
+  $('resultTitle').textContent = title;
+  $('resultSub').textContent = sub;
+  const box = $('resultChips');
+  box.innerHTML = '';
+  chips.forEach(c => { const s = document.createElement('span'); s.className = 'chip'; s.textContent = c; box.appendChild(s); });
+  const bar = $('resultBar');
+  bar.classList.toggle('warn', !!warn);
+  bar.hidden = false;
+}
+function hideResult(){ $('resultBar').hidden = true; }
+$('resultClose').addEventListener('click', hideResult);
+
+/* ============================================================
+   RUN LIFECYCLE
+============================================================ */
+function lockUI(on){
+  document.querySelectorAll('.scn').forEach(b => { b.disabled = on; });
+  $('stopBtn').disabled = !on;
+}
+function beginRun(){ state.runGen++; state.running = true; lockUI(true); return state.runGen; }
+function endRun(gen){ if(gen === state.runGen){ state.running = false; lockUI(false); } }
+function abort(gen){ endRun(gen); return false; }
+
+function clearWorld(){
+  document.querySelectorAll('#tokenLayer .token').forEach(t => t.remove());
+  $('scanBeam').classList.remove('scanning');
+  $('sensorBar').classList.remove('active');
+  clearSensors();
+  setHatch('LOCKED');
+  setDiverter('NEUTRAL');
+  setMacerator('OFF');
+  setOutlet('CLOSED');
+  setPipeState('IDLE');
+  pipeFillReset();
+  setLayer('—'); setScan('IDLE'); setPurity('—');
+  setReject('EMPTY');
+  setDig('—','STANDBY','—','—');
+  setPlant(false,false,false,false);
+  resetDock();
+  hideResult();
+  state.visited.clear();
+  setPhase('IDLE');
+}
+function prepareForNewRun(){
+  state.runGen++;
+  releasePauses();
+  state.paused = false;
+  syncPauseUI();
+  clearWorld();
+  return beginRun();
+}
+
+/* ============================================================
+   SHARED SCENARIO STAGES
+============================================================ */
+async function stageIntake(gen, u, p){
+  const go = ms => step(gen, ms);
+
+  log('USER', `${u.id} started a disposal session with container ${u.containerId}`);
+  if(!await go(500)) return null;
+
+  const tok = spawnToken(p);
+  updateSensors(p);
+  log('BIN', `${p.label} inserted, load cell reads ${p.weight.toFixed(2)} kg`);
+  setPhase('WASTE_INSERTED');
+  if(!await go(500)) return null;
+
+  setPhase('HOUSEHOLD_SCANNING');
+  log('BIN', 'Point-of-disposal sensor scan started');
+  if(!await go(700)) return null;
+
+  setPhase('HOUSEHOLD_ACCEPTED');
+  setHatch('READY');
+  log('BIN', p.hidden ? 'Household screening passed, no contamination visible in the organic mass' : 'Household screening passed, no inorganic contamination detected', 'ok');
+  if(!await go(500)) return null;
+
+  setPhase('DOCKING');
+  moveToken(tok, POS.dock, 700);
+  log('DOCK', 'Container docked at processing hub');
+  if(!await go(700)) return null;
+
+  if(!await handshake(gen, u, p)) return null;
+  if(!await go(300)) return null;
+
+  setPhase('DISCHARGING');
+  setHatch('OPEN');
+  moveToken(tok, POS.flatStart, 700);
+  log('BIN', 'Bottom discharge hatch opened');
+  if(!await go(700)) return null;
+
+  setPhase('FLATBED_ACTIVE');
+  spreadToken(tok);
+  setLayer('SPREADING', 'info');
+  moveToken(tok, POS.flatEnd, 900);
+  log('FLATBED', 'Batch spreading into a thin layer on the flatbed track');
+  if(!await go(900)) return null;
+
+  setLayer('SPREAD', 'ok');
+  setPhase('SECONDARY_SCANNING');
+  $('scanBeam').classList.add('scanning');
+  $('sensorBar').classList.add('active');
+  setScan('ACTIVE', 'info');
+  log('FLATBED', 'Secondary multi-sensor fusion scan active');
+  if(!await go(p.hidden ? 1000 : 900)) return null;
+
+  $('scanBeam').classList.remove('scanning');
+  $('sensorBar').classList.remove('active');
+  setScan('DONE', 'ok');
+  return tok;
+}
+
+async function routeTo(gen, tok, target, logSrc, logMsg){
+  log(logSrc, logMsg);
+  moveToken(tok, POS.ySplit, 450);
+  if(!await step(gen, 500)) return false;
+  moveToken(tok, target, 600);
+  return step(gen, 650);
+}
+
+async function stageTransfer(gen, mass){
+  const dur = PIPE_MS[state.transportMode] || 1400;
+  setPhase('PIPELINE_TRANSFER');
+  setPipeState('TRANSFER');
+  pipeFillStart(dur);
+  log('PIPELINE', `Slurry transfer started through adaptive pipeline (${state.transportMode})`);
+  if(!await step(gen, dur + 200)) return false;
+  setPipeState('DONE');
+  pipeFillDone();
+  bump('transferred', mass);
+  setSumpLevel(Math.max(0, state.sumpLevel - 35));
+  setPhase('DIGESTER_RECEIVED');
+  setDig('RECEIVED','STANDBY','—','—');
+  setPlant(true,false,false,false);
+  log('PLANT', 'Slurry received at anaerobic digestion facility', 'ok');
+  if(!await step(gen, 600)) return false;
+  setDig('RECEIVED','ACTIVE','ACTIVE','ACTIVE');
+  setPlant(true,true,true,true);
+  log('PLANT', 'Bioprocessing active, biogas and digestate outputs (simulated)', 'ok');
+  return step(gen, 700);
+}
+
+/* ============================================================
+   SCENARIO: ORGANIC CYCLE (credit)
+============================================================ */
+async function runOrganicCycle(userId, typeKey, opts){
+  opts = opts || {};
+  const gen = prepareForNewRun();
+  const go = ms => step(gen, ms);
+  const p = WASTE[typeKey || 'organic_food'];
+  const u = state.users[userId || 'USER-001'];
+
+  const tok = await stageIntake(gen, u, p);
+  if(!tok) return abort(gen);
+
+  setPhase('SECONDARY_ACCEPTED');
+  setPurity('ACCEPTED', 'ok');
+  log('FLATBED', 'Secondary purity check ACCEPTED, organic material verified', 'ok');
+  if(!await go(500)) return abort(gen);
+
+  setPhase('ROUTING_ORGANIC');
+  setDiverter('ORGANIC');
+  if(!await routeTo(gen, tok, POS.mac, 'DIVERTER', 'Y-split positioned to ORGANIC route')) return abort(gen);
+
+  setPhase('MACERATING');
+  setMacerator('ON');
+  slurryToken(tok);
+  log('MACERATOR', 'Grinding organic waste into pumpable slurry');
+  if(!await go(1100)) return abort(gen);
+
+  setMacerator('OFF');
+  removeToken(tok);
+  bump('organic');
+  bump('produced', p.weight);
+  setSumpLevel(state.sumpLevel + 35);
+  setOutlet('OPEN');
+  setPhase('SLURRY_READY');
+  log('SUMP', 'Organic slurry generated and collected in sump', 'ok');
+  if(!await go(600)) return abort(gen);
+
+  if(!await stageTransfer(gen, p.weight)) return abort(gen);
+
+  setPhase('CREDIT_PROCESSING');
+  creditUser(u.id, p.weight, Math.round(p.weight * 10), opts.dockId, "organic");
+  if(!await go(500)) return abort(gen);
+  closeSession('CREDITED');
+
+  setPhase('COMPLETE');
+  log('SYSTEM', 'Successful organic transaction: verified, processed, transferred, credited', 'ok');
+  showResult('Successful organic waste transaction', `${u.id}, ${p.weight.toFixed(2)} kg verified organic waste`, ['VERIFIED','PROCESSED','TRANSFERRED','CREDITED']);
+  if(!opts.holdLock) endRun(gen);
+  return true;
+}
+
+/* ============================================================
+   SCENARIO: HIDDEN CONTAMINANT CAUGHT AT SECONDARY SCRUTINY
+============================================================ */
+async function runHiddenContaminant(userId, applyPenalty, opts){
+  opts = opts || {};
+  const gen = prepareForNewRun();
+  const go = ms => step(gen, ms);
+  const p = WASTE.mixed_hidden;
+  const u = state.users[userId || 'USER-002'];
+
+  const tok = await stageIntake(gen, u, p);
+  if(!tok) return abort(gen);
+
+  revealToken(tok);
+  setPhase('SECONDARY_REJECTED');
+  setPurity('FAILED', 'warn');
+  setVal('dashContam', 'DETECTED', 'warn');
+  log('FLATBED', 'Hidden inorganic material detected, secondary purity check FAILED', 'warn');
+  if(!await go(600)) return abort(gen);
+
+  setPhase('ROUTING_REJECTION');
+  setDiverter('REJECTION');
+  if(!await routeTo(gen, tok, POS.reject, 'DIVERTER', 'Y-split positioned to REJECTION route')) return abort(gen);
+
+  removeToken(tok);
+  bump('inorganic');
+  setReject('ISOLATED', 'warn');
+  setMacerator('OFF');
+  log('DIVERTER', 'Contaminated batch diverted to rejection containment, macerator protected', 'ok');
+  if(!await go(500)) return abort(gen);
+
+  if(applyPenalty){
+    setPhase('PENALTY_PROCESSING');
+    log('ACCOUNT', `Secondary contamination confirmed for ${u.id}`, 'warn');
+    penaltyUser(u.id, 'non-compliant material found at secondary scrutiny', p.weight, opts.dockId, "contamination");
+    if(!await go(500)) return abort(gen);
+    closeSession('PENALTY FLAGGED');
+  } else {
+    closeSession('REJECTED');
+  }
+
+  setPhase('COMPLETE');
+  log('SYSTEM', 'Redundant contamination protection confirmed, macerator never engaged', 'ok');
+  showResult('Contamination safely intercepted', `${u.id}, secondary scrutiny caught what the bin missed`,
+    ['SECONDARY DETECTION','MACERATOR PROTECTED','CONTAMINANT REJECTED', applyPenalty ? 'PENALTY LOGGED' : 'LOGGED'], true);
+  if(!opts.holdLock) endRun(gen);
+  return true;
+}
+
+/* ============================================================
+   SCENARIO: MACERATOR STALL AND AUTO-REVERSE
+============================================================ */
+async function runMaceratorStall(){
+  const gen = prepareForNewRun();
+  const go = ms => step(gen, ms);
+  const p = WASTE.organic_food;
+  const tok = spawnToken(p);
+  updateSensors(p);
+
+  setPhase('WASTE_INSERTED');
+  log('BIN', `${p.label} inserted, routing directly to the maceration line for the stall test`);
+  if(!await go(400)) return abort(gen);
+
+  setHatch('OPEN');
+  moveToken(tok, POS.flatEnd, 500);
+  setPhase('FLATBED_ACTIVE');
+  if(!await go(500)) return abort(gen);
+
+  setPhase('ROUTING_ORGANIC');
+  setDiverter('ORGANIC');
+  if(!await routeTo(gen, tok, POS.mac, 'DIVERTER', 'Y-split positioned to ORGANIC route')) return abort(gen);
+
+  setPhase('MACERATING');
+  setMacerator('ON');
+  log('MACERATOR', 'Maceration active, normal grinding');
+  if(!await go(900)) return abort(gen);
+
+  setPhase('MACERATOR_STALLED');
+  setMacerator('STALLED');
+  log('MACERATOR', 'Motor current spike: stall detected', 'warn');
+  if(!await go(700)) return abort(gen);
+
+  setPhase('AUTO_REVERSING');
+  setMacerator('REVERSING');
+  log('MACERATOR', 'Auto-reverse activated, grinder rotating backward', 'warn');
+  if(!await go(900)) return abort(gen);
+
+  log('MACERATOR', 'Blockage cleared', 'ok');
+  if(!await go(400)) return abort(gen);
+
+  setPhase('MACERATING');
+  setMacerator('ON');
+  slurryToken(tok);
+  log('MACERATOR', 'Forward operation resumed', 'ok');
+  if(!await go(900)) return abort(gen);
+
+  setMacerator('OFF');
+  removeToken(tok);
+  bump('organic');
+  bump('produced', p.weight);
+  setSumpLevel(state.sumpLevel + 35);
+  setPhase('SLURRY_READY');
+  log('SUMP', 'Organic slurry generated after successful stall recovery', 'ok');
+  if(!await go(400)) return abort(gen);
+
+  setPhase('COMPLETE');
+  showResult('Macerator stall recovered', 'Current spike detected, auto-reverse cleared the blockage, forward operation resumed automatically', ['STALL DETECTED','AUTO-REVERSED','BLOCKAGE CLEARED','RESUMED']);
+  endRun(gen);
+  return true;
+}
+
+/* ============================================================
+   SCENARIO: SLURRY PIPELINE DEMO
+============================================================ */
+async function runPipelineDemo(){
+  const gen = prepareForNewRun();
+  const go = ms => step(gen, ms);
+  setSumpLevel(70);
+  setOutlet('OPEN');
+  setPhase('SLURRY_READY');
+  log('SUMP', 'Slurry sump pre-loaded to 70%, ready for transfer');
+  if(!await go(700)) return abort(gen);
+
+  const dur = PIPE_MS[state.transportMode] || 1400;
+  setPhase('PIPELINE_TRANSFER');
+  setPipeState('TRANSFER');
+  pipeFillStart(dur);
+  log('PIPELINE', `Slurry transfer started in ${state.transportMode} transport mode`);
+  if(!await go(dur + 300)) return abort(gen);
+
+  setPipeState('DONE');
+  pipeFillDone();
+  bump('transferred', 3.0);
+  setSumpLevel(0);
+  setPhase('DIGESTER_RECEIVED');
+  setDig('RECEIVED','ACTIVE','ACTIVE','ACTIVE');
+  setPlant(true,true,true,true);
+  log('PLANT', 'Slurry received, digestion feed active', 'ok');
+  if(!await go(600)) return abort(gen);
+
+  setPhase('COMPLETE');
+  log('SYSTEM', 'Pipeline demo complete. Transport timings are simulation values, not validated flow rates.');
+  showResult('Pipeline transfer complete', `${state.transportMode} mode, 3.00 kg slurry delivered to the digestion plant`, ['SLURRY TRANSFERRED','DIGESTION FEED ACTIVE']);
+  endRun(gen);
+  return true;
+}
+
+/* ============================================================
+   JUDGE SEQUENCE
+============================================================ */
+async function runJudgeSequence(userId, dockId){
+  const ok = await runOrganicCycle(userId, 'organic_food', {holdLock:true, dockId});
+  if(!ok) return;
+  const g = state.runGen;
+  if(!await step(g, 2800)) return;
+  // For judge demo, we'll pick user 2 for the contaminant part unless the selected user is already User 2.
+  const contamUser = userId === 'USER-001' ? 'USER-002' : userId;
+  await runHiddenContaminant(contamUser, true, {dockId});
+}
+
+/* ============================================================
+   RESET AND STOP
+============================================================ */
+function setSpeed(s){
+  state.speed = s;
+  document.documentElement.style.setProperty('--speed-scale', s);
+  document.querySelectorAll('.spd').forEach(b => b.classList.toggle('active', parseFloat(b.dataset.speed) === s));
+}
+function resetSystem(){
+  state.runGen++;
+  releasePauses();
+  state.paused = false;
+  syncPauseUI();
+  setSpeed(1);
+  clearWorld();
+  setSumpLevel(0);
+  state.organicAccepted = 0; setVal('dashOrganic', '0');
+  state.inorganicRejected = 0; setVal('dashInorganic', '0');
+  state.slurryProduced = 0; setVal('dashSlurryProduced', '0.00 kg');
+  state.slurryTransferred = 0; setVal('dashSlurryTransferred', '0.00 kg');
+  state.users = freshUsers();
+  state.sessionSeq = 0;
+  renderUsers();
+  $('eventRows').innerHTML = '';
+  $('serverRows').innerHTML = '';
+  state.netPacketCount = 0; netTick = 0;
+  $('netPackets').textContent = '0';
+  $('netSync').textContent = '-';
+  state.running = false;
+  broadcastState(null);
+  lockUI(false);
+  log('SYSTEM', 'System reset, ready for next scenario');
+  startAmbient();
+}
+function stopDemo(){
+  if(!state.running) return;
+  state.runGen++;
+  releasePauses();
+  state.paused = false;
+  syncPauseUI();
+  $('scanBeam').classList.remove('scanning');
+  $('sensorBar').classList.remove('active');
+  if(state.macerator !== 'OFF') setMacerator('OFF');
+  if(dock.sessState === 'OPEN'){
+    dock.sessState = 'ABORTED';
+    dock.state = 'SESSION ABORTED';
+    dock.result = 'ABORTED';
+    dock.duration = fmtDuration(Date.now() - dock.startMs);
+    renderDock();
+    const u = state.users[dock.user]; if(u){ u.signal = 'IDLE'; renderUsers(); }
+  }
+  state.running = false;
+  lockUI(false);
+  log('SYSTEM', 'Demo stopped by user', 'warn');
+}
+
+/* ============================================================
+   CONTROLS
+============================================================ */
+document.querySelectorAll('.scn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    if(state.running) return;
+    const userId = $('userSelect').value;
+    const dockId = $('dockSelect').value;
+    dock.dockId = dockId; // Set current station ID on dock state
+    switch(btn.dataset.scn){
+      case 'credit':     runOrganicCycle(userId, 'credit_batch', {dockId}); break;
+      case 'penalty':    runHiddenContaminant(userId, true, {dockId}); break;
+      case 'stall':      runMaceratorStall(); break;
+      case 'pipeline':   runPipelineDemo(); break;
+      case 'fulldemo':   runOrganicCycle(userId, 'organic_food', {dockId}); break;
+      case 'contamdemo': runHiddenContaminant(userId, true, {dockId}); break;
+      case 'judge':      runJudgeSequence(userId, dockId); break;
+    }
+  });
+});
+$('pauseBtn').addEventListener('click', () => {
+  state.paused = !state.paused;
+  syncPauseUI();
+  if(!state.paused) releasePauses();
+  log('SYSTEM', state.paused ? 'Simulation paused' : 'Simulation resumed');
+});
+$('stopBtn').addEventListener('click', stopDemo);
+$('resetBtn').addEventListener('click', resetSystem);
+document.querySelectorAll('.spd').forEach(btn => {
+  btn.addEventListener('click', () => {
+    setSpeed(parseFloat(btn.dataset.speed));
+    log('SYSTEM', `Speed set to ${state.speed}x`);
+  });
+});
+document.querySelectorAll('#modeSelect button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    state.transportMode = btn.dataset.mode;
+    document.querySelectorAll('#modeSelect button').forEach(b => b.classList.toggle('sel', b === btn));
+    setVal('svPipeMode', state.transportMode);
+    log('PIPELINE', `Transport mode set to ${state.transportMode}`);
+  });
+});
+$('archBtn').addEventListener('click', () => { $('archModal').classList.add('show'); $('archClose').focus(); });
+$('archClose').addEventListener('click', () => $('archModal').classList.remove('show'));
+$('archModal').addEventListener('click', e => { if(e.target === $('archModal')) $('archModal').classList.remove('show'); });
+document.addEventListener('keydown', e => { if(e.key === 'Escape') $('archModal').classList.remove('show'); });
+$('themeBtn').addEventListener('click', () => {
+  const root = document.documentElement;
+  const light = root.getAttribute('data-theme') !== 'light';
+  root.setAttribute('data-theme', light ? 'light' : 'dark');
+  $('themeBtn').textContent = light ? 'Dark theme' : 'Light theme';
+});
+
+/* ============================================================
+   INIT
+============================================================ */
+resetSystem();
+log('SYSTEM', 'Digital twin initialized, select a scenario to begin');
+})();
+</script>
+</body>
+</html>
